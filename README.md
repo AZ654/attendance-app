@@ -99,7 +99,9 @@ npm run account:create -- --username zhangsan --password 'StrongPass123' --nickn
 
 ### 2. 管理端创建 / 重置（日常使用）
 
-用管理员账号登录 → 进入「管理」页 → 在「创建电脑端账号」填写账号、初始密码、显示名称与角色。员工列表中可为已有账号**重置密码**。
+用管理员账号登录 → 进入「管理」页 → 在「创建电脑端账号」填写账号、初始密码、显示名称与角色。
+- 已经是微信用户的员工，在员工列表点「绑定电脑账号」，即可让手机与电脑使用**同一个员工身份**，避免记录分散。
+- 员工列表中可为已有账号**重置密码**。
 
 ### 3. 电脑端登录注意事项
 
@@ -200,6 +202,7 @@ GEO_REVERSE_ENABLED=true
 | GET | `/api/admin/employees` | 员工概览 | 管理员 |
 | GET | `/api/admin/locations` | 全员位置记录 | 管理员 |
 | POST | `/api/admin/accounts` | 创建电脑端账号 | 管理员 |
+| POST | `/api/admin/accounts/:id/bind` | 为已有员工绑定电脑账号 | 管理员 |
 | POST | `/api/admin/accounts/:id/password` | 重置账号密码 | 管理员 |
 | GET | `/health` / `/ready` | 健康/就绪检查 | 公开 |
 

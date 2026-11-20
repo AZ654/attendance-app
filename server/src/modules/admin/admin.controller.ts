@@ -14,6 +14,12 @@ export const createAccount: RequestHandler = (req, res) => {
   res.status(201).json(authService.createLocalAccount({ username, password, nickname, role }));
 };
 
+/** 管理员给已有员工绑定电脑端账号（微信用户也可绑定）。 */
+export const bindAccount: RequestHandler = (req, res) => {
+  const { username, password } = req.body as { username: string; password: string };
+  res.json(authService.bindLocalCredentials(String(req.params.id), username, password));
+};
+
 /** 管理员重置账号密码。 */
 export const resetAccountPassword: RequestHandler = (req, res) => {
   const { password } = req.body as { password: string };

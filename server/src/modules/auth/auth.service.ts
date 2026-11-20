@@ -104,6 +104,19 @@ export function createLocalAccount(input: {
   return toPublicUser(user);
 }
 
+/** 给已有员工（如微信登录用户）绑定电脑端账号，避免同一人产生两条员工记录。 */
+export function bindLocalCredentials(userId: string, username: string, password: string): PublicUser {
+  const user = authRepository.findUserById(userId);
+  if (!user) throw new NotFoundError('员工不存在');
+  const name = normalizeUsername(username);
+  const existing = authRepository.findUserByUsername(name);
+  if (existing && existing.id !== userId) throw new ConflictError('账号已存在');
+  const { hash, salt } = hashPassword(password);
+  authRepository.setCredentials(userId, name, hash, salt);
+  logger.info({ userId, username: name }, '已为员工绑定电脑端账号');
+  return toPublicUser(authRepository.findUserById(userId)!);
+}
+
 /** 管理员重置已有账号密码。 */
 export function resetAccountPassword(userId: string, password: string): PublicUser {
   const user = authRepository.findUserById(userId);

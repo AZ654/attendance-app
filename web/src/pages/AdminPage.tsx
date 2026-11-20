@@ -12,6 +12,9 @@ export function AdminPage() {
   const [accountBusy, setAccountBusy] = useState(false);
   const [resetFor, setResetFor] = useState<string | null>(null);
   const [resetPassword, setResetPassword] = useState('');
+  const [bindFor, setBindFor] = useState<string | null>(null);
+  const [bindAccountName, setBindAccountName] = useState('');
+  const [bindPassword, setBindPassword] = useState('');
 
   const load = useCallback(async () => {
     try {
@@ -43,6 +46,27 @@ export function AdminPage() {
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : '创建账号失败');
+    } finally {
+      setAccountBusy(false);
+    }
+  };
+
+  const bindAccount = async (userId: string) => {
+    setError('');
+    setMessage('');
+    setAccountBusy(true);
+    try {
+      const bound = await api.post<{ username: string }>(`/admin/accounts/${userId}/bind`, {
+        username: bindAccountName.trim(),
+        password: bindPassword,
+      });
+      setMessage(`已为该员工绑定电脑账号 ${bound.username}。`);
+      setBindFor(null);
+      setBindAccountName('');
+      setBindPassword('');
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '绑定账号失败');
     } finally {
       setAccountBusy(false);
     }
@@ -130,6 +154,42 @@ export function AdminPage() {
                 {e.consentActive ? '已授权' : '未授权'}
               </span>
             </div>
+            {!e.username && (
+              <div className="mt8">
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => { setBindFor(bindFor === e.id ? null : e.id); setBindAccountName(''); setBindPassword(''); }}
+                >
+                  绑定电脑账号
+                </button>
+                {bindFor === e.id && (
+                  <div className="spread mt8">
+                    <input
+                      className="input"
+                      style={{ flex: 1, marginRight: 8 }}
+                      placeholder="账号"
+                      value={bindAccountName}
+                      onChange={(event) => setBindAccountName(event.target.value)}
+                    />
+                    <input
+                      className="input"
+                      style={{ flex: 1, marginRight: 8 }}
+                      type="password"
+                      placeholder="初始密码（至少 8 位）"
+                      value={bindPassword}
+                      onChange={(event) => setBindPassword(event.target.value)}
+                    />
+                    <button
+                      className="btn btn-sm"
+                      disabled={accountBusy || !bindAccountName.trim() || bindPassword.length < 8}
+                      onClick={() => bindAccount(e.id)}
+                    >
+                      确认绑定
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
             {e.username && (
               <div className="small mt8 spread">
                 <span>电脑账号：{e.username}</span>
