@@ -1,12 +1,20 @@
 import type { ApiErrorShape, TokenResponse } from '../types';
 
 /**
- * API 基地址：
- * - 本地开发未设置时走 Vite 代理的 /api（相对路径）
- * - GitHub Pages 静态部署时，构建期注入 VITE_API_BASE（公网后端地址，含 /api）
+ * API 基地址，按优先级：
+ * 1. 运行时 config.js（window.__APP_CONFIG__.apiBase）——部署后改一个文件即可切换后端，无需重建
+ * 2. 构建期 VITE_API_BASE（兼容旧部署方式）
+ * 3. 本地开发走 Vite 代理的 /api
  */
+declare global {
+  interface Window {
+    __APP_CONFIG__?: { apiBase?: string };
+  }
+}
+
+const runtime = typeof window !== 'undefined' ? window.__APP_CONFIG__?.apiBase?.trim() : undefined;
 const injected = (import.meta.env.VITE_API_BASE as string | undefined)?.trim();
-const BASE = injected ? injected.replace(/\/$/, '') : '/api';
+const BASE = (runtime || injected || '/api').replace(/\/$/, '');
 
 /** 访问令牌只存内存，永不落 localStorage/sessionStorage；刷新令牌由 httpOnly Cookie 承载。 */
 let accessToken: string | null = null;

@@ -26,6 +26,8 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,ico}'],
+        // config.js 必须每次走网络，否则改了后端地址也被离线缓存挡住
+        globIgnores: ['**/config.js'],
         navigateFallback: '/index.html',
       },
     }),

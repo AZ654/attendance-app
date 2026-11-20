@@ -180,6 +180,83 @@ GEO_REVERSE_ENABLED=true
 填入 `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `MAIL_FROM` / `ATTENDANCE_MAIL_TO`。
 未配置时邮件任务仅入队不实际发送（开发占位），不会阻塞考勤流程。
 
+## 云端部署：GitHub 自动部署 + Railway 后端（替代本机 + cpolar）
+
+前端托管在 **GitHub Pages**，后端托管在 **Railway**：GitHub 仓库关联 Railway 后，推送代码即自动构建部署，得到**固定公网域名**，不再需要本机常开和 cpolar 随机地址。
+
+### 架构与数据流
+
+1. 用户在 GitHub Pages 打开前端 → 前端从 `config.js` 读取后端地址。
+2. 请求发往 Railway 后端域名 → 后端处理考勤逻辑，SQLite 数据库放在持久卷。
+3. Railway 绑定 GitHub 仓库，`master` 有推送即自动重新构建部署。
+
+### 第一步：准备 Railway 项目
+
+1. 注册 [Railway](https://railway.app) 并用 GitHub 账号登录（授权仓库访问）。
+2. New Project → **Deploy from GitHub repo** → 选择 `attendance-app`。
+3. 进入服务设置 → **Root Directory** 改为 `server`（关键，否则找不到 Dockerfile）。
+4. 添加持久卷：**Settings → Volumes → Add Volume**，挂载路径填 `/data`（数据库 `DATABASE_PATH=/data/attendance.db` 落在这里，重启不丢数据）。
+5. 生成域名：**Settings → Networking → Generate Domain**，得到 `https://xxx.up.railway.app`。
+
+### 第二步：配置环境变量（Railway → Variables）
+
+| 变量 | 示例值 | 说明 |
+|---|---|---|
+| `NODE_ENV` | `production` | 生产模式，自动开启 secure Cookie |
+| `PORT` | `4000` | 也可省略，Railway 会注入 `PORT` |
+| `DATABASE_PATH` | `/data/attendance.db` | 指向持久卷 |
+| `CORS_ORIGIN` | `https://az654.github.io` | 前端域名，多个用逗号分隔，禁止通配符 |
+| `COOKIE_SAMESITE` | `none` | 前后端不同域必须 none |
+| `JWT_ACCESS_SECRET` | 随机 32 字节 hex | `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
+| `JWT_REFRESH_SECRET` | 另一个随机 32 字节 hex | 同上，勿与上面重复 |
+| `PII_ENCRYPTION_KEY` | 随机 32 字节 hex | AES-256-GCM 密钥 |
+| `WECHAT_APP_ID` / `WECHAT_APP_SECRET` | 微信开放平台凭证 | 仅用微信登录时必填 |
+| `WECHAT_REDIRECT_URI` | `https://az654.github.io/attendance-app/login` | 回调指向前端 `/login` |
+| `PASSWORD_LOGIN_ENABLED` | `true` | 启用电脑端账号登录；只用它时可省略微信凭证 |
+| `AMAP_KEY` / `AMAP_SECRET` | 高德 Web 服务 Key | 地址逆解析；Secret 仅在开启签名时填 |
+| `SMTP_*` / `ATTENDANCE_MAIL_TO` | — | 邮件通知，按需配置 |
+| `OFFICE_LAT` / `OFFICE_LNG` / `ATTENDANCE_RADIUS_METERS` / `WORK_*` | — | 考勤规则，按需配置 |
+
+> 密钥只填在 Railway 控制台，**绝不提交到仓库**。`.env` 已在 `.gitignore`。
+
+### 第三步：让前端指向云后端
+
+编辑 `web/public/config.js`，把 `apiBase` 改成 Railway 域名：
+
+```js
+window.__APP_CONFIG__ = {
+  apiBase: 'https://xxx.up.railway.app/api'
+};
+```
+
+提交后推送 `master`，GitHub Pages 会自动更新（或手动同步 `gh-pages` 分支）。**以后换后端地址只改这一个文件，不用重新编译前端。**
+
+### 第四步：迁移账号数据（可选）
+
+本机 SQLite 已有账号/记录时要迁移到 Railway：
+
+```bash
+# 用 Railway CLI 查看卷路径并上传数据库文件（示例）
+railway volume ls
+railway volume write <volume-id> ./data/attendance.db /data/attendance.db
+```
+
+若无历史数据，可直接在云上重新初始化：部署后用命令行创建管理员账号：
+
+```bash
+# 在有 Railway 环境变量的本地 shell 中，或进入 Railway 服务的 Shell
+npm run account:create -- --username admin --password 'StrongPass123' --role admin
+```
+
+### 验证云部署
+
+```bash
+curl https://xxx.up.railway.app/health                 # {"status":"ok"}
+curl https://xxx.up.railway.app/api/auth/wechat/url    # 返回登录方式探测
+```
+
+打开 GitHub Pages 登录页，用电脑账号登录，确认能拉到账号信息与打卡记录。
+
 ## 主要 API
 
 | 方法 | 路径 | 说明 | 权限 |
