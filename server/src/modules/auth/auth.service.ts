@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { authRepository, type UserRow } from './auth.repository.js';
 import { signAccessToken, signRefreshToken, verifyRefreshToken, type AccessTokenPayload } from '../../lib/token.js';
-import { sha256, randomToken } from '../../lib/crypto.js';
+import { sha256, randomToken, hashPassword, verifyPassword } from '../../lib/crypto.js';
 import { config } from '../../config/env.js';
-import { UnauthorizedError, BadRequestError } from '../../lib/errors.js';
+import { UnauthorizedError, BadRequestError, ConflictError, NotFoundError } from '../../lib/errors.js';
+import { normalizeUsername } from './auth.schema.js';
 import { logger } from '../../lib/logger.js';
 
 export interface TokenPair {
@@ -17,6 +18,7 @@ export interface PublicUser {
   id: string;
   role: 'employee' | 'admin';
   openid: string;
+  username: string | null;
   nickname: string | null;
   avatar: string | null;
   createdAt: string;
@@ -27,6 +29,7 @@ export function toPublicUser(u: UserRow): PublicUser {
     id: u.id,
     role: u.role,
     openid: u.openid,
+    username: u.username,
     nickname: u.nickname,
     avatar: u.avatar,
     createdAt: u.created_at,
@@ -62,6 +65,53 @@ export function loginWithWechatIdentity(input: {
   }
 
   return issueTokens(user);
+}
+
+/** 电脑端账号密码登录：用户名与密码均不匹配时返回统一错误，避免账号枚举。 */
+export function loginWithPassword(username: string, password: string): TokenPair {
+  const user = authRepository.findUserByUsername(normalizeUsername(username));
+  if (!user?.password_hash || !user.password_salt || !verifyPassword(password, user.password_salt, user.password_hash)) {
+    throw new UnauthorizedError('账号或密码错误');
+  }
+  return issueTokens(user);
+}
+
+/** 创建电脑端账号（管理员端 / CLI 均可调用）。 */
+export function createLocalAccount(input: {
+  username: string;
+  password: string;
+  nickname?: string;
+  role?: 'employee' | 'admin';
+}): PublicUser {
+  const name = normalizeUsername(input.username);
+  if (authRepository.findUserByUsername(name)) throw new ConflictError('账号已存在');
+  const { hash, salt } = hashPassword(input.password);
+  const now = new Date().toISOString();
+  const user = authRepository.createUser({
+    id: randomUUID(),
+    openid: `local:${name}`,
+    unionid: null,
+    role: input.role ?? 'employee',
+    nickname: input.nickname?.trim() || name,
+    avatar: null,
+    username: name,
+    password_hash: hash,
+    password_salt: salt,
+    created_at: now,
+    updated_at: now,
+  });
+  logger.info({ userId: user.id, username: name, role: user.role }, '电脑端账号已创建');
+  return toPublicUser(user);
+}
+
+/** 管理员重置已有账号密码。 */
+export function resetAccountPassword(userId: string, password: string): PublicUser {
+  const user = authRepository.findUserById(userId);
+  if (!user) throw new NotFoundError('账号不存在');
+  const { hash, salt } = hashPassword(password);
+  authRepository.setCredentials(user.id, user.username ?? `local:${user.id}`, hash, salt);
+  logger.info({ userId: user.id }, '账号密码已重置');
+  return toPublicUser(authRepository.findUserById(user.id)!);
 }
 
 export function issueTokens(user: UserRow): TokenPair {

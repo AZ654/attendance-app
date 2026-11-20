@@ -1,4 +1,5 @@
 import { db } from '../../db/index.js';
+import { rowAs } from '../../db/helpers.js';
 
 export interface UserRow {
   id: string;
@@ -7,6 +8,9 @@ export interface UserRow {
   role: 'employee' | 'admin';
   nickname: string | null;
   avatar: string | null;
+  username: string | null;
+  password_hash: string | null;
+  password_salt: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -29,12 +33,44 @@ export const authRepository = {
     return db.prepare('SELECT * FROM users WHERE id = ?').get(id) as UserRow | undefined;
   },
 
-  createUser(user: Omit<UserRow, 'created_at' | 'updated_at'> & { created_at: string; updated_at: string }): UserRow {
+  findUserByUsername(username: string): UserRow | undefined {
+    return db.prepare('SELECT * FROM users WHERE username = ?').get(username) as UserRow | undefined;
+  },
+
+  createUser(user: {
+    id: string;
+    openid: string;
+    unionid: string | null;
+    role: 'employee' | 'admin';
+    nickname: string | null;
+    avatar: string | null;
+    username?: string | null;
+    password_hash?: string | null;
+    password_salt?: string | null;
+    created_at: string;
+    updated_at: string;
+  }): UserRow {
     db.prepare(`
-      INSERT INTO users (id, openid, unionid, role, nickname, avatar, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(user.id, user.openid, user.unionid, user.role, user.nickname, user.avatar, user.created_at, user.updated_at);
-    return user as UserRow;
+      INSERT INTO users (id, openid, unionid, role, nickname, avatar, username, password_hash, password_salt, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      user.id, user.openid, user.unionid, user.role, user.nickname, user.avatar,
+      user.username ?? null, user.password_hash ?? null, user.password_salt ?? null,
+      user.created_at, user.updated_at,
+    );
+    return rowAs<UserRow>(db.prepare('SELECT * FROM users WHERE id = ?').get(user.id))!;
+  },
+
+  /** 给已有用户（例如微信登录用户）绑定电脑端账号密码。 */
+  setCredentials(id: string, username: string, passwordHash: string, passwordSalt: string): void {
+    db.prepare(`
+      UPDATE users SET username = ?, password_hash = ?, password_salt = ?, updated_at = ? WHERE id = ?
+    `).run(username, passwordHash, passwordSalt, new Date().toISOString(), id);
+  },
+
+  setRole(id: string, role: 'employee' | 'admin'): void {
+    db.prepare('UPDATE users SET role = ?, updated_at = ? WHERE id = ?')
+      .run(role, new Date().toISOString(), id);
   },
 
   updateProfile(id: string, nickname: string | null, avatar: string | null): void {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { haversineDistance } from '../src/lib/geo.js';
-import { maskIdCard, maskPhone, encrypt, decrypt } from '../src/lib/crypto.js';
+import { maskIdCard, maskPhone, encrypt, decrypt, hashPassword, verifyPassword } from '../src/lib/crypto.js';
 
 describe('考勤距离计算', () => {
   it('相同坐标距离为 0', () => {
@@ -22,6 +22,17 @@ describe('脱敏', () => {
     expect(masked.startsWith('4403')).toBe(true);
     expect(masked.endsWith('1234')).toBe(true);
     expect(masked).not.toContain('19900101');
+  });
+});
+
+describe('账号密码哈希', () => {
+  it('正确密码验证通过、错误密码验证失败', () => {
+    const { salt, hash } = hashPassword('StrongPass123');
+    expect(verifyPassword('StrongPass123', salt, hash)).toBe(true);
+    expect(verifyPassword('wrong-password', salt, hash)).toBe(false);
+  });
+  it('相同密码两次加盐结果不同', () => {
+    expect(hashPassword('StrongPass123').salt).not.toBe(hashPassword('StrongPass123').salt);
   });
 });
 

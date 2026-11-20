@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { config } from '../config/env.js';
 import { logger } from '../lib/logger.js';
+import { rowsAs } from './helpers.js';
 
 fs.mkdirSync(path.dirname(config.dbPath), { recursive: true });
 
@@ -92,5 +93,15 @@ export function initSchema(): void {
     );
     CREATE INDEX IF NOT EXISTS idx_mail_status ON mail_jobs(status, next_attempt_at);
   `);
+
+  // 兼容已有数据库：为电脑端账号登录增加字段（幂等迁移）
+  const userColumns = new Set(
+    rowsAs<{ name: string }>(db.prepare('PRAGMA table_info(users)').all()).map((row) => row.name),
+  );
+  if (!userColumns.has('username')) db.exec('ALTER TABLE users ADD COLUMN username TEXT');
+  if (!userColumns.has('password_hash')) db.exec('ALTER TABLE users ADD COLUMN password_hash TEXT');
+  if (!userColumns.has('password_salt')) db.exec('ALTER TABLE users ADD COLUMN password_salt TEXT');
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username) WHERE username IS NOT NULL');
+
   logger.info('数据库 schema 初始化完成');
 }

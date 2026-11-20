@@ -24,14 +24,24 @@ function sendTokens(res: import('express').Response, tokens: TokenPair): void {
 /** 生成微信网页 OAuth 授权 URL，前端据此跳转。 */
 export const getWechatAuthUrl: RequestHandler = (req, res) => {
   if (config.isDevMode) {
-    return res.json({ devMode: true, authUrl: null });
+    return res.json({ devMode: true, authUrl: null, passwordLoginEnabled: config.passwordLoginEnabled });
   }
   if (!config.WECHAT_APP_ID || !config.WECHAT_REDIRECT_URI) {
-    throw new BadRequestError('服务端未配置微信登录');
+    // 没有微信凭证时仍允许电脑端账号登录；前端据此隐藏微信按钮
+    return res.json({ devMode: false, authUrl: null, wechatConfigured: false, passwordLoginEnabled: config.passwordLoginEnabled });
   }
   const state = randomUUID();
   setOAuthStateCookie(res, state);
-  res.json({ devMode: false, authUrl: buildWechatAuthUrl(state), state });
+  res.json({ devMode: false, authUrl: buildWechatAuthUrl(state), state, wechatConfigured: true, passwordLoginEnabled: config.passwordLoginEnabled });
+};
+
+/** 电脑端账号密码登录，返回与微信登录相同的令牌结构。 */
+export const passwordLogin: RequestHandler = (req, res) => {
+  if (!config.passwordLoginEnabled) throw new UnauthorizedError('账号密码登录已关闭');
+  const { username, password } = req.body as { username: string; password: string };
+  const tokens = service.loginWithPassword(username, password);
+  logger.info({ userId: tokens.user.id, username }, '电脑端账号登录');
+  sendTokens(res, tokens);
 };
 
 function buildWechatAuthUrl(state: string): string {

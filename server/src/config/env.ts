@@ -30,6 +30,8 @@ const schema = z.object({
   WECHAT_REDIRECT_URI: z.string().default(''),
   AUTH_DEV_MODE: z.enum(['true', 'false']).default('false'),
   AUTH_DEV_OPENID: z.string().default('dev-openid-001'),
+  // 电脑端账号密码登录（与微信登录并存）
+  PASSWORD_LOGIN_ENABLED: z.enum(['true', 'false']).default('true'),
 
   ATTENDANCE_RADIUS_METERS: z.coerce.number().int().positive().default(500),
   OFFICE_LAT: z.coerce.number().min(-90).max(90).default(22.5431),
@@ -74,11 +76,16 @@ if (raw.NODE_ENV === 'production') {
     ['JWT_ACCESS_SECRET', 'JWT 访问令牌密钥'],
     ['JWT_REFRESH_SECRET', 'JWT 刷新令牌密钥'],
     ['CORS_ORIGIN', 'CORS 来源'],
-    ['WECHAT_APP_ID', '微信 AppID'],
-    ['WECHAT_APP_SECRET', '微信 AppSecret'],
-    ['WECHAT_REDIRECT_URI', '微信回调地址'],
     ['PII_ENCRYPTION_KEY', '个人信息加密密钥'],
   ];
+  // 若只使用电脑端账号登录，可不配置微信；否则微信凭证必须齐全
+  if (raw.PASSWORD_LOGIN_ENABLED !== 'true') {
+    required.push(
+      ['WECHAT_APP_ID', '微信 AppID'],
+      ['WECHAT_APP_SECRET', '微信 AppSecret'],
+      ['WECHAT_REDIRECT_URI', '微信回调地址'],
+    );
+  }
   const missing = required.filter(([key]) => !raw[key] || String(raw[key]).startsWith('replace_'));
   if (missing.length) {
     console.error(`[config] 生产环境缺少必要配置：${missing.map(([, n]) => n).join('、')}`);
@@ -98,6 +105,7 @@ export const config = Object.freeze({
   ...raw,
   isProd: raw.NODE_ENV === 'production',
   isDevMode: raw.AUTH_DEV_MODE === 'true',
+  passwordLoginEnabled: raw.PASSWORD_LOGIN_ENABLED === 'true',
   cookieSameSite: raw.COOKIE_SAMESITE,
   // SameSite=None 必须由 HTTPS 承载，强制 Secure
   cookieSecure: raw.NODE_ENV === 'production' || raw.COOKIE_SAMESITE === 'none',

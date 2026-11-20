@@ -9,6 +9,7 @@
     "start": "node --no-warnings=ExperimentalWarning dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "migrate": "tsx src/db/migrate.ts",
+    "account:create": "tsx scripts/create-account.ts",
     "test": "vitest run --pool=threads --no-file-parallelism"
   },
   "dependencies": {

@@ -6,7 +6,10 @@ interface AuthState {
   user: PublicUser | null;
   loading: boolean;
   devMode: boolean | null;
+  passwordLoginEnabled: boolean;
+  wechatConfigured: boolean;
   loginDev: (openid?: string) => Promise<void>;
+  loginPassword: (username: string, password: string) => Promise<void>;
   loginByCode: (code: string, state?: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -18,6 +21,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<PublicUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [devMode, setDevMode] = useState<boolean | null>(null);
+  const [passwordLoginEnabled, setPasswordLoginEnabled] = useState(true);
+  const [wechatConfigured, setWechatConfigured] = useState(true);
 
   const applyTokens = useCallback((data: TokenResponse) => {
     setAccessToken(data.accessToken);
@@ -28,12 +33,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     (async () => {
       try {
-        const info = await api.get<{ devMode: boolean }>('/auth/wechat/url', { skipAuth: true });
+        const info = await api.get<{
+          devMode: boolean;
+          wechatConfigured?: boolean;
+          passwordLoginEnabled?: boolean;
+        }>('/auth/wechat/url', { skipAuth: true });
         setDevMode(info.devMode);
+        setWechatConfigured(info.wechatConfigured !== false);
+        setPasswordLoginEnabled(info.passwordLoginEnabled !== false);
       } catch {
         // 探测失败（网络抖动 / 限流）时容错回退到开发模式：
         // 本地开发可正常登录；生产环境 dev-login 端点有 isDevMode 保护，会拒绝请求，不会暴露风险。
         setDevMode(true);
+        setWechatConfigured(false);
       }
       try {
         const refreshed = await api.post<TokenResponse>('/auth/refresh', undefined, { skipAuth: true });
@@ -50,6 +62,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loginDev = useCallback(
     async (openid?: string) => {
       const data = await api.post<TokenResponse>('/auth/dev-login', { openid }, { skipAuth: true });
+      applyTokens(data);
+    },
+    [applyTokens],
+  );
+
+  const loginPassword = useCallback(
+    async (username: string, password: string) => {
+      const data = await api.post<TokenResponse>('/auth/password-login', { username, password }, { skipAuth: true });
       applyTokens(data);
     },
     [applyTokens],
@@ -79,7 +99,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, devMode, loginDev, loginByCode, logout, refreshUser }}>
+    <AuthContext.Provider
+      value={{
+        user, loading, devMode, passwordLoginEnabled, wechatConfigured,
+        loginDev, loginPassword, loginByCode, logout, refreshUser,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

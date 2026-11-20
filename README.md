@@ -1,6 +1,6 @@
 # 员工考勤系统（基于单独授权的位置考勤）
 
-一个合规优先的全栈位置考勤应用：员工微信登录 → **首次单独授权** → 工作时段内**自动无感上报位置**（日常无需操作）→ 异步邮件通知 HR。实名信息与手机号均为**自愿填写、加密存储、脱敏展示、可随时撤回**。
+一个合规优先的全栈位置考勤应用：员工**微信登录（手机）或账号登录（电脑）** → **首次单独授权** → 工作时段内**自动无感上报位置**（日常无需操作）→ 异步邮件通知 HR。实名信息与手机号均为**自愿填写、加密存储、脱敏展示、可随时撤回**。
 
 ## ⚖️ 合规设计（重要）
 
@@ -77,7 +77,35 @@ npm install
 npm run dev          # http://localhost:5173，/api 已代理到 4000
 ```
 
-首个登录的用户会自动成为管理员（用于演示管理端）；生产环境应由后台显式指定管理员角色。
+首个微信登录的用户会自动成为管理员（用于演示管理端）；生产环境建议用下面的命令行显式创建管理员账号。
+
+## 电脑端账号登录
+
+微信网页授权依赖微信客户端，电脑浏览器无法直接使用。系统同时提供**账号 + 密码**登录，手机微信登录与电脑账号登录并存，登录后功能完全一致。
+
+### 1. 创建账号（命令行，适合初始化管理员）
+
+```bash
+cd server
+npm run migrate
+npm run account:create -- --username admin --password 'StrongPass123' --role admin --nickname 管理员
+# 创建员工账号
+npm run account:create -- --username zhangsan --password 'StrongPass123' --nickname 张三
+```
+
+- 账号：3–32 位字母、数字、下划线或连字符，大小写无关；密码至少 8 位。
+- 密码使用 **scrypt 加盐慢哈希**存储，服务端不保存明文；重复执行同一账号命令会**重置密码**，不会创建重复账号。
+- 生产环境若只用账号登录、不接微信，可不配置微信凭证（需设置 `PASSWORD_LOGIN_ENABLED=true`）。
+
+### 2. 管理端创建 / 重置（日常使用）
+
+用管理员账号登录 → 进入「管理」页 → 在「创建电脑端账号」填写账号、初始密码、显示名称与角色。员工列表中可为已有账号**重置密码**。
+
+### 3. 电脑端登录注意事项
+
+- 电脑浏览器的精确定位同样需要授权；若电脑无 GPS，会自动回退到网络定位，也可在打卡页手动上报位置。
+- 账号登录后仍需完成一次位置采集单独授权，之后才会在工作时段自动上报。
+- 如要关闭账号登录，在 `server/.env` 设置 `PASSWORD_LOGIN_ENABLED=false` 并重启后端。
 
 ## 接入真实微信登录
 
@@ -154,7 +182,8 @@ GEO_REVERSE_ENABLED=true
 
 | 方法 | 路径 | 说明 | 权限 |
 |---|---|---|---|
-| GET | `/api/auth/wechat/url` | 获取微信授权 URL / 开发模式标记 | 公开 |
+| GET | `/api/auth/wechat/url` | 获取微信授权 URL / 登录方式探测 | 公开 |
+| POST | `/api/auth/password-login` | 电脑端账号密码登录 | 公开 |
 | POST | `/api/auth/dev-login` | 开发模式登录 | 公开(仅开发) |
 | POST | `/api/auth/login-by-code` | 微信 code 登录 | 公开 |
 | POST | `/api/auth/refresh` | 刷新令牌（Cookie） | 公开 |
@@ -170,6 +199,8 @@ GEO_REVERSE_ENABLED=true
 | GET | `/api/locations/mine` | 我的上报记录 | 登录 |
 | GET | `/api/admin/employees` | 员工概览 | 管理员 |
 | GET | `/api/admin/locations` | 全员位置记录 | 管理员 |
+| POST | `/api/admin/accounts` | 创建电脑端账号 | 管理员 |
+| POST | `/api/admin/accounts/:id/password` | 重置账号密码 | 管理员 |
 | GET | `/health` / `/ready` | 健康/就绪检查 | 公开 |
 
 ## 验证
@@ -191,7 +222,8 @@ npm run dev           # http://localhost:5173
 
 ## 生产上线清单
 
-- [ ] 关闭 `AUTH_DEV_MODE`，配置真实微信凭证
+- [ ] 关闭 `AUTH_DEV_MODE`；按需配置真实微信凭证或仅启用 `PASSWORD_LOGIN_ENABLED`
+- [ ] 用命令行创建管理员账号并妥善保管初始密码，首次登录后提醒修改
 - [ ] 生成并安全保管三类密钥，`.env` 加入 `.gitignore`（已配置）
 - [ ] `CORS_ORIGIN` 显式配置前端域名，禁止通配符
 - [ ] 全站 HTTPS（Cookie `secure` 在生产自动开启）

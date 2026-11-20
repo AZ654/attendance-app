@@ -39,3 +39,22 @@ export function randomToken(bytes = 32): string {
 export function sha256(value: string): string {
   return crypto.createHash('sha256').update(value).digest('hex');
 }
+
+/** 电脑端账号密码：scrypt 加盐慢哈希，盐与哈希分开存储。 */
+export function hashPassword(password: string): { salt: string; hash: string } {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.scryptSync(password, salt, 64).toString('hex');
+  return { salt, hash };
+}
+
+export function verifyPassword(password: string, salt: string, expectedHash: string): boolean {
+  let actual: Buffer;
+  let expected: Buffer;
+  try {
+    actual = crypto.scryptSync(password, salt, 64);
+    expected = Buffer.from(expectedHash, 'hex');
+  } catch {
+    return false;
+  }
+  return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
+}

@@ -2,6 +2,7 @@ export interface PublicUser {
   id: string;
   role: 'employee' | 'admin';
   openid: string;
+  username: string | null;
   nickname: string | null;
   avatar: string | null;
   createdAt: string;
@@ -67,6 +68,7 @@ export interface AdminLocationView extends LocationView {
 export interface EmployeeSummary {
   id: string;
   nickname: string | null;
+  username: string | null;
   role: string;
   createdAt: string;
   consentActive: boolean;
