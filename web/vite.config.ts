@@ -3,6 +3,8 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
+  // 部署到 GitHub Pages 项目页时为 /attendance-app/；本地开发默认 /
+  base: process.env.VITE_BASE || '/',
   plugins: [
     react(),
     VitePWA({

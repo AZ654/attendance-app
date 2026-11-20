@@ -1,6 +1,12 @@
 import type { ApiErrorShape, TokenResponse } from '../types';
 
-const BASE = '/api';
+/**
+ * API 基地址：
+ * - 本地开发未设置时走 Vite 代理的 /api（相对路径）
+ * - GitHub Pages 静态部署时，构建期注入 VITE_API_BASE（公网后端地址，含 /api）
+ */
+const injected = (import.meta.env.VITE_API_BASE as string | undefined)?.trim();
+const BASE = injected ? injected.replace(/\/$/, '') : '/api';
 
 /** 访问令牌只存内存，永不落 localStorage/sessionStorage；刷新令牌由 httpOnly Cookie 承载。 */
 let accessToken: string | null = null;

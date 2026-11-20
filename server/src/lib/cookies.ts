@@ -8,8 +8,8 @@ export const OAUTH_STATE_COOKIE = 'wx_state';
 export function setRefreshCookie(res: Response, token: string): void {
   res.cookie(REFRESH_COOKIE, token, {
     httpOnly: true,
-    secure: config.isProd,
-    sameSite: config.isProd ? 'strict' : 'lax',
+    secure: config.cookieSecure,
+    sameSite: config.cookieSameSite,
     path: '/api/auth',
     maxAge: 7 * 24 * 3600 * 1000,
   });
@@ -23,8 +23,8 @@ export function clearRefreshCookie(res: Response): void {
 export function setOAuthStateCookie(res: Response, state: string): void {
   res.cookie(OAUTH_STATE_COOKIE, state, {
     httpOnly: true,
-    secure: config.isProd,
-    sameSite: config.isProd ? 'strict' : 'lax',
+    secure: config.cookieSecure,
+    sameSite: config.cookieSameSite,
     path: '/api/auth',
     maxAge: 10 * 60 * 1000,
   });

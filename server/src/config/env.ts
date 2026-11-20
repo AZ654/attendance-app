@@ -19,6 +19,8 @@ const schema = z.object({
   JWT_REFRESH_SECRET: z.string().min(16),
   JWT_ACCESS_TTL: z.string().default('15m'),
   JWT_REFRESH_TTL: z.string().default('7d'),
+  // Cookie SameSite：本地同源用 lax；前端与后端不同域（如 GitHub Pages + 公网后端）时用 none
+  COOKIE_SAMESITE: z.enum(['lax', 'strict', 'none']).default('lax'),
 
   DATABASE_PATH: z.string().default('./data/attendance.db'),
 
@@ -96,6 +98,9 @@ export const config = Object.freeze({
   ...raw,
   isProd: raw.NODE_ENV === 'production',
   isDevMode: raw.AUTH_DEV_MODE === 'true',
+  cookieSameSite: raw.COOKIE_SAMESITE,
+  // SameSite=None 必须由 HTTPS 承载，强制 Secure
+  cookieSecure: raw.NODE_ENV === 'production' || raw.COOKIE_SAMESITE === 'none',
   corsOrigins: raw.CORS_ORIGIN.split(',').map((s) => s.trim()).filter(Boolean),
   mailTo: raw.ATTENDANCE_MAIL_TO.split(',').map((s) => s.trim()).filter(Boolean),
   workDays: raw.WORK_DAYS.split(',').map((s) => Number(s.trim())).filter((n) => n >= 0 && n <= 6),
