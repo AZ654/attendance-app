@@ -4,7 +4,8 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
   // 部署到 GitHub Pages 项目页时为 /attendance-app/；本地开发默认 /
-  base: process.env.VITE_BASE || '/',
+  // 用布尔开关而非路径字符串，避免 Windows Git Bash 对前导 / 的路径转换
+  base: process.env.GITHUB_PAGES === 'true' ? '/attendance-app/' : '/',
   plugins: [
     react(),
     VitePWA({
