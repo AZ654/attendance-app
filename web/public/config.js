@@ -5,8 +5,8 @@
  *   - 本地开发：留空，前端走 Vite 代理的 /api
  *   - 云部署：填写后端服务的公网地址，例如 https://xxx.up.railway.app/api
  *
- * 当前值为临时隧道地址，后端迁移到 Railway 后请替换此值。
+ * 当前指向 Railway 云后端（固定域名，不再依赖本机隧道）。
  */
 window.__APP_CONFIG__ = {
-  apiBase: 'https://236a56fe.r16.cpolar.top/api'
+  apiBase: 'https://resilient-flexibility-production-150d04fe.up.railway.app/api'
 };
