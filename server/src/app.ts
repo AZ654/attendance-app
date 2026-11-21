@@ -17,6 +17,7 @@ import { usersRouter } from './modules/users/users.routes.js';
 import { consentRouter } from './modules/consent/consent.routes.js';
 import { locationsRouter } from './modules/locations/locations.routes.js';
 import { adminRouter } from './modules/admin/admin.routes.js';
+import { mailRelayRouter } from './modules/mail-relay/mail-relay.routes.js';
 import { mailQueue } from './jobs/mailer.js';
 import { initSchema } from './db/index.js';
 
@@ -81,6 +82,7 @@ export function createApp() {
   api.use('/consent', consentRouter);
   api.use('/locations', locationsRouter);
   api.use('/admin', adminRouter);
+  api.use('/mail-relay', mailRelayRouter);
   app.use('/api', api);
 
   app.use(notFoundHandler);
