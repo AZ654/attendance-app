@@ -1,0 +1,35 @@
+name: Attendance mail relay
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  relay:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: relay/package-lock.json
+
+      - name: Install relay dependencies
+        run: npm ci --prefix relay
+
+      - name: Send pending attendance emails
+        env:
+          API_BASE: https://resilient-flexibility-production-150d04fe.up.railway.app/api
+          MAIL_RELAY_TOKEN: ${{ secrets.MAIL_RELAY_TOKEN }}
+          SMTP_HOST: smtp.qq.com
+          SMTP_PORT: '587'
+          SMTP_SECURE: 'false'
+          SMTP_USER: ${{ secrets.MAIL_USER }}
+          SMTP_PASS: ${{ secrets.MAIL_PASS }}
+          MAIL_FROM: ${{ secrets.MAIL_FROM }}
+        run: node relay/index.mjs
