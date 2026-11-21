@@ -41,6 +41,7 @@ interface RequestOptions extends Omit<RequestInit, 'headers'> {
   headers?: Record<string, string>;
   skipAuth?: boolean;
   retries?: number;
+  timeout?: number;
 }
 
 /** 尝试用 httpOnly Cookie 刷新访问令牌（单例，避免并发重放）。 */
@@ -75,6 +76,7 @@ function friendlyMessage(shape: ApiErrorShape): string {
     NOT_FOUND: '请求的资源不存在',
     RATE_LIMITED: '操作过于频繁，请稍后再试',
     TOO_MANY_REQUESTS: '操作过于频繁，请稍后再试',
+    TIMEOUT: '连接服务器超时，请检查手机网络后重试（切换 WiFi/流量 或 稍后再试）',
   };
   if (map[shape.code]) return map[shape.code];
   if (shape.details?.length) {
@@ -85,17 +87,31 @@ function friendlyMessage(shape: ApiErrorShape): string {
 
 /** 统一请求封装：401 自动刷新重试；5xx/网络错误最多重试 3 次；4xx 不重试。 */
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { skipAuth, retries = 2, headers, ...rest } = options;
+  const { skipAuth, retries = 2, headers, timeout = 12000, ...rest } = options;
   const doFetch = async (): Promise<Response> => {
     const h: Record<string, string> = { 'Content-Type': 'application/json', ...(headers ?? {}) };
     if (!skipAuth && accessToken) h['Authorization'] = `Bearer ${accessToken}`;
-    return fetch(`${BASE}${path}`, { ...rest, headers: h, credentials: 'include' });
+    // 微信内置浏览器在弱网下 fetch 可能一直挂起（既不 resolve 也不 reject）。
+    // 用 AbortController 加超时，避免按钮永远卡在「登录中...」且不给任何提示。
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
+    try {
+      return await fetch(`${BASE}${path}`, { ...rest, headers: h, credentials: 'include', signal: controller.signal });
+    } catch (e) {
+      if (e && (e as Error).name === 'AbortError') {
+        throw new ApiClientError(0, { code: 'TIMEOUT', message: '连接服务器超时，请检查手机网络后重试' });
+      }
+      throw new ApiClientError(0, { code: 'NETWORK_ERROR', message: '网络连接失败，请检查网络后重试' });
+    } finally {
+      clearTimeout(timer);
+    }
   };
 
   let res: Response;
   try {
     res = await doFetch();
-  } catch {
+  } catch (e) {
+    if (e instanceof ApiClientError) throw e;
     throw new ApiClientError(0, { code: 'NETWORK_ERROR', message: '网络连接失败，请检查网络后重试' });
   }
 
