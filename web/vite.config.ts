@@ -18,17 +18,19 @@ export default defineConfig({
         theme_color: '#0a7cff',
         background_color: '#ffffff',
         display: 'standalone',
-        start_url: '/',
+        // 相对路径，兼容子路径部署（/attendance-app/）与本地开发（/）
+        start_url: './',
         icons: [
-          { src: '/icon-192.svg', sizes: '192x192', type: 'image/svg+xml' },
-          { src: '/icon-512.svg', sizes: '512x512', type: 'image/svg+xml' },
+          { src: 'icon-192.svg', sizes: '192x192', type: 'image/svg+xml' },
+          { src: 'icon-512.svg', sizes: '512x512', type: 'image/svg+xml' },
         ],
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,ico}'],
         // config.js 必须每次走网络，否则改了后端地址也被离线缓存挡住
         globIgnores: ['**/config.js'],
-        navigateFallback: '/index.html',
+        // 相对路径，PWA 内部路由回退到子路径下的 index.html
+        navigateFallback: 'index.html',
       },
     }),
   ],

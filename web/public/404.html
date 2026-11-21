@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>考勤系统</title>
+    <script>
+      // GitHub Pages 静态托管无 SPA 路由回退：404 时把当前完整路径交给 index.html 恢复。
+      // 编码后跳转，避免微信 OAuth 回调里的 code/state 查询参数丢失。
+      var path = encodeURIComponent(location.pathname + location.search + location.hash);
+      sessionStorage.setItem('spa-redirect', path);
+      location.replace('/attendance-app/index.html');
+    </script>
+  </head>
+  <body>
+    正在跳转...
+  </body>
+</html>
