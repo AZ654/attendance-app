@@ -6,9 +6,26 @@
     <meta name="theme-color" content="#0a7cff" />
     <link rel="icon" type="image/svg+xml" href="/attendance-app/favicon.svg" />
     <title>员工考勤系统</title>
+    <!-- GitHub Pages SPA 回退：404.html 捕获子路由后，在这里恢复原始路径 -->
+    <script>
+      (function () {
+        try {
+          var saved = sessionStorage.getItem('spa-redirect');
+          if (saved) {
+            sessionStorage.removeItem('spa-redirect');
+            var target = decodeURIComponent(saved);
+            if (location.pathname !== target.split('?')[0].split('#')[0]) {
+              history.replaceState(null, '', target);
+            }
+          }
+        } catch (e) {
+          /* 隐私模式下 sessionStorage 不可用，忽略即可 */
+        }
+      })();
+    </script>
     <!-- 运行时配置：部署后可直接改 config.js 切换后端地址，无需重新构建 -->
     <script src="/attendance-app/config.js"></script>
-    <script type="module" crossorigin src="/attendance-app/assets/index-pckEkK7s.js"></script>
+    <script type="module" crossorigin src="/attendance-app/assets/index-DJieSfFM.js"></script>
     <link rel="stylesheet" crossorigin href="/attendance-app/assets/index-CHT-wIjL.css">
   <link rel="manifest" href="/attendance-app/manifest.webmanifest"><script id="vite-plugin-pwa:register-sw" src="/attendance-app/registerSW.js"></script></head>
   <body>
