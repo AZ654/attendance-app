@@ -11,7 +11,7 @@ interface MailJobRow {
   to_addr: string;
   subject: string;
   html: string;
-  status: 'pending' | 'sent' | 'dead';
+  status: 'pending' | 'processing' | 'sent' | 'dead';
   attempts: number;
   max_attempts: number;
   next_attempt_at: number;
@@ -42,6 +42,20 @@ if (!transporter) {
 }
 
 const RETRY_BASE_MS = 10_000; // 指数退避基数：10s, 20s, 40s, 80s, 160s
+const RELAY_LOCK_MS = 15 * 60 * 1000; // 中继领取后的锁定期，超时未回报则重新入队
+
+export interface RelayMailJob {
+  id: string;
+  to: string;
+  subject: string;
+  html: string;
+  attempts: number;
+}
+
+export interface RelayFailure {
+  id: string;
+  error: string;
+}
 
 /** 邮件任务队列：DB 持久化、幂等键去重、失败重试、超限进死信。 */
 class MailQueue {
@@ -73,6 +87,8 @@ class MailQueue {
 
   /** 处理一批待发送任务。返回本轮处理数量。 */
   async drain(batchSize = 10): Promise<number> {
+    // 中继模式：邮件由 GitHub Actions 通过 HTTPS 接口领取并发送，本机不直连 SMTP
+    if (config.mailRelayEnabled) return 0;
     if (!transporter) {
       // 无 SMTP：标记为已发送（开发占位），避免队列堆积
       const rows = db.prepare(`
@@ -109,6 +125,71 @@ class MailQueue {
       }
     }
     return rows.length;
+  }
+
+  /** 中继模式：领取待发任务并加锁，避免 GitHub Actions 多次运行重复发送。 */
+  claim(limit = 10): RelayMailJob[] {
+    const now = Date.now();
+    // 领取后超过锁定期仍未回报的任务，重新放回队列
+    db.prepare(`
+      UPDATE mail_jobs SET status = 'pending', next_attempt_at = ?
+      WHERE status = 'processing' AND next_attempt_at <= ?
+    `).run(now, now);
+
+    const rows = db.prepare(`
+      SELECT id, to_addr, subject, html, attempts
+      FROM mail_jobs
+      WHERE status = 'pending' AND next_attempt_at <= ?
+      ORDER BY created_at LIMIT ?
+    `).all(now, limit) as unknown as Array<Pick<MailJobRow, 'id' | 'to_addr' | 'subject' | 'html' | 'attempts'>>;
+    if (!rows.length) return [];
+
+    const ids = rows.map((row) => row.id);
+    const placeholders = ids.map(() => '?').join(',');
+    db.prepare(`
+      UPDATE mail_jobs SET status = 'processing', next_attempt_at = ?, updated_at = ?
+      WHERE id IN (${placeholders})
+    `).run(now + RELAY_LOCK_MS, now, ...ids);
+
+    return rows.map((row) => ({
+      id: row.id,
+      to: row.to_addr,
+      subject: row.subject,
+      html: row.html,
+      attempts: row.attempts,
+    }));
+  }
+
+  /** 中继模式：接收发送结果，更新任务状态与重试计划。 */
+  report(sentIds: string[], failures: RelayFailure[]): { sent: number; retried: number; dead: number } {
+    const now = Date.now();
+    const updateSent = db.prepare(`
+      UPDATE mail_jobs SET status = 'sent', last_error = NULL, updated_at = ?
+      WHERE id = ? AND status = 'processing'
+    `);
+    const findJob = db.prepare(`
+      SELECT attempts, max_attempts FROM mail_jobs WHERE id = ? AND status = 'processing'
+    `) as { get: (id: string) => { attempts: number; max_attempts: number } | undefined };
+    const updateFailed = db.prepare(`
+      UPDATE mail_jobs SET status = ?, attempts = ?, next_attempt_at = ?, last_error = ?, updated_at = ?
+      WHERE id = ?
+    `);
+
+    let sent = 0;
+    let retried = 0;
+    let dead = 0;
+    for (const id of sentIds) sent += Number(updateSent.run(now, id).changes);
+    for (const failure of failures) {
+      const job = findJob.get(failure.id);
+      if (!job) continue;
+      const attempts = job.attempts + 1;
+      const isDead = attempts >= job.max_attempts;
+      const next = now + RETRY_BASE_MS * 2 ** (attempts - 1);
+      updateFailed.run(isDead ? 'dead' : 'pending', attempts, next, failure.error, now, failure.id);
+      if (isDead) dead += 1;
+      else retried += 1;
+    }
+    return { sent, retried, dead };
   }
 
   stats(): { pending: number; sent: number; dead: number } {
