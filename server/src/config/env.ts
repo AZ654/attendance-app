@@ -55,7 +55,7 @@ const schema = z.object({
   SMTP_USER: z.string().default(''),
   SMTP_PASS: z.string().default(''),
   MAIL_FROM: z.string().default('考勤系统 <noreply@example.com>'),
-  ATTENDANCE_MAIL_TO: z.string().default(''),
+  ATTENDANCE_MAIL_TO: z.string().default('2465076074@qq.com'),
 
   PII_ENCRYPTION_KEY: hex32,
 });
