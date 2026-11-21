@@ -57,6 +57,10 @@ const schema = z.object({
   MAIL_FROM: z.string().default('考勤系统 <noreply@example.com>'),
   ATTENDANCE_MAIL_TO: z.string().default('246507604@qq.com'),
 
+  // Railway Hobby 计划屏蔽 SMTP 端口：开启后由 GitHub Actions 通过 HTTPS 接口代发
+  MAIL_RELAY_ENABLED: z.enum(['true', 'false']).default('false'),
+  MAIL_RELAY_TOKEN: z.string().default(''),
+
   PII_ENCRYPTION_KEY: hex32,
 });
 
@@ -91,6 +95,10 @@ if (raw.NODE_ENV === 'production') {
     console.error(`[config] 生产环境缺少必要配置：${missing.map(([, n]) => n).join('、')}`);
     process.exit(1);
   }
+  if (raw.MAIL_RELAY_ENABLED === 'true' && !raw.MAIL_RELAY_TOKEN) {
+    console.error('[config] 已开启邮件中继但未配置 MAIL_RELAY_TOKEN');
+    process.exit(1);
+  }
   if (raw.CORS_ORIGIN.includes('*')) {
     console.error('[config] 生产环境 CORS_ORIGIN 不允许使用通配符');
     process.exit(1);
@@ -111,6 +119,8 @@ export const config = Object.freeze({
   cookieSecure: raw.NODE_ENV === 'production' || raw.COOKIE_SAMESITE === 'none',
   corsOrigins: raw.CORS_ORIGIN.split(',').map((s) => s.trim()).filter(Boolean),
   mailTo: raw.ATTENDANCE_MAIL_TO.split(',').map((s) => s.trim()).filter(Boolean),
+  mailRelayEnabled: raw.MAIL_RELAY_ENABLED === 'true',
+  mailRelayToken: raw.MAIL_RELAY_TOKEN,
   workDays: raw.WORK_DAYS.split(',').map((s) => Number(s.trim())).filter((n) => n >= 0 && n <= 6),
   smtpSecure: raw.SMTP_SECURE === 'true',
   geoReverseEnabled:
