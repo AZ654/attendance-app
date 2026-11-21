@@ -1,12 +1,9 @@
 import type { RequestHandler } from 'express';
-import { randomUUID } from 'node:crypto';
 import { config } from '../../config/env.js';
 import { BadRequestError, UnauthorizedError } from '../../lib/errors.js';
 import { logger } from '../../lib/logger.js';
-import {
-  setRefreshCookie, clearRefreshCookie, readCookie,
-  setOAuthStateCookie, clearOAuthStateCookie, OAUTH_STATE_COOKIE,
-} from '../../lib/cookies.js';
+import { setRefreshCookie, clearRefreshCookie, readCookie } from '../../lib/cookies.js';
+import { issueOAuthState, verifyOAuthState as checkOAuthState } from '../../lib/oauth-state.js';
 import * as service from './auth.service.js';
 import { authRepository } from './auth.repository.js';
 import type { TokenPair } from './auth.service.js';
@@ -30,8 +27,8 @@ export const getWechatAuthUrl: RequestHandler = (req, res) => {
     // 没有微信凭证时仍允许电脑端账号登录；前端据此隐藏微信按钮
     return res.json({ devMode: false, authUrl: null, wechatConfigured: false, passwordLoginEnabled: config.passwordLoginEnabled });
   }
-  const state = randomUUID();
-  setOAuthStateCookie(res, state);
+  // 自签名 state：微信会原样带回，后端验签即可，不依赖第三方 Cookie（微信内置浏览器会阻止跨站 Cookie）
+  const state = issueOAuthState(config.JWT_ACCESS_SECRET);
   res.json({ devMode: false, authUrl: buildWechatAuthUrl(state), state, wechatConfigured: true, passwordLoginEnabled: config.passwordLoginEnabled });
 };
 
@@ -67,10 +64,9 @@ export const devLogin: RequestHandler = (req, res) => {
   sendTokens(res, tokens);
 };
 
-/** 校验 OAuth state：与 httpOnly Cookie 中的值严格比对，防 CSRF。 */
-function verifyOAuthState(req: import('express').Request, state: unknown): void {
-  const expected = readCookie(req, OAUTH_STATE_COOKIE);
-  if (typeof state !== 'string' || !state || !expected || state !== expected) {
+/** 校验 OAuth state：验证自签名令牌（含时间戳防重放），防 CSRF，不依赖 Cookie。 */
+function assertOAuthState(state: unknown): void {
+  if (!checkOAuthState(state, config.JWT_ACCESS_SECRET)) {
     throw new UnauthorizedError('登录状态校验失败，请重新发起微信登录');
   }
 }
@@ -79,9 +75,8 @@ function verifyOAuthState(req: import('express').Request, state: unknown): void 
 export const wechatCallback: RequestHandler = async (req, res) => {
   const code = req.query.code;
   if (typeof code !== 'string' || !code) throw new BadRequestError('缺少微信授权 code');
-  verifyOAuthState(req, req.query.state);
+  assertOAuthState(req.query.state);
   const identity = await service.exchangeCodeForIdentity(code);
-  clearOAuthStateCookie(res);
   sendTokens(res, service.loginWithWechatIdentity(identity));
 };
 
@@ -90,9 +85,8 @@ export const loginByCode: RequestHandler = async (req, res) => {
   const { code, state } = req.body as { code: string; state?: string };
   if (!code) throw new BadRequestError('缺少 code');
   // 真实 OAuth 流程必须校验 state；开发模式用模拟身份，不走此路径。
-  if (!config.isDevMode) verifyOAuthState(req, state);
+  if (!config.isDevMode) assertOAuthState(state);
   const identity = await service.exchangeCodeForIdentity(code);
-  clearOAuthStateCookie(res);
   sendTokens(res, service.loginWithWechatIdentity(identity));
 };
 

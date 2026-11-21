@@ -1,6 +1,32 @@
 import { describe, it, expect } from 'vitest';
 import { haversineDistance } from '../src/lib/geo.js';
 import { maskIdCard, maskPhone, encrypt, decrypt, hashPassword, verifyPassword } from '../src/lib/crypto.js';
+import { issueOAuthState, verifyOAuthState } from '../src/lib/oauth-state.js';
+
+describe('OAuth state 自签名校验', () => {
+  const secret = 'test-secret-key-at-least-16-chars';
+  it('签发的 token 校验通过', () => {
+    const state = issueOAuthState(secret);
+    expect(verifyOAuthState(state, secret)).toBe(true);
+  });
+  it('篡改后校验失败', () => {
+    const state = issueOAuthState(secret);
+    expect(verifyOAuthState(`${state}x`, secret)).toBe(false);
+  });
+  it('错误密钥校验失败', () => {
+    const state = issueOAuthState(secret);
+    expect(verifyOAuthState(state, 'another-secret-key-16chars')).toBe(false);
+  });
+  it('过期 token 校验失败', () => {
+    const now = Date.now();
+    const state = issueOAuthState(secret, now - 11 * 60 * 1000);
+    expect(verifyOAuthState(state, secret, now)).toBe(false);
+  });
+  it('空值/非字符串校验失败', () => {
+    expect(verifyOAuthState(undefined, secret)).toBe(false);
+    expect(verifyOAuthState('', secret)).toBe(false);
+  });
+});
 
 describe('考勤距离计算', () => {
   it('相同坐标距离为 0', () => {
