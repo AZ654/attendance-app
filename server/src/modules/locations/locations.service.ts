@@ -5,6 +5,7 @@ import { isWithinWorkWindow } from '../consent/consent.service.js';
 import { config } from '../../config/env.js';
 import { BadRequestError, ForbiddenError } from '../../lib/errors.js';
 import { mailQueue } from '../../jobs/mailer.js';
+import { notifyMailRelay } from '../../jobs/mail-trigger.js';
 import { authRepository } from '../auth/auth.repository.js';
 import { haversineDistance } from '../../lib/geo.js';
 import { reverseGeocode } from '../../lib/geocoder.js';
@@ -113,6 +114,8 @@ function enqueueLocationMail(row: LocationRow, consent: ConsentRow, withinWorkWi
     subject,
     html,
   });
+  // 即时触发中继（配置了 GITHUB_TOKEN 才生效）；未配置时保持原 cron 发送行为
+  notifyMailRelay();
 }
 
 export interface LocationView {

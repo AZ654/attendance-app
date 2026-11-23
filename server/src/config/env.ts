@@ -60,6 +60,12 @@ const schema = z.object({
   // Railway Hobby 计划屏蔽 SMTP 端口：开启后由 GitHub Actions 通过 HTTPS 接口代发
   MAIL_RELAY_ENABLED: z.enum(['true', 'false']).default('false'),
   MAIL_RELAY_TOKEN: z.string().default(''),
+  // 打卡后即时触发中继：配置 GitHub Token（需 Actions 写权限）后，入队即触发一次 workflow_dispatch，
+  // 把邮件延迟从 cron 的 5 分钟降到约 20-60 秒。留空则退化为仅 cron 发送，不影响功能。
+  GITHUB_TOKEN: z.string().default(''),
+  GITHUB_REPO: z.string().default('AZ654/attendance-app'),
+  GITHUB_WORKFLOW: z.string().default('mail-relay.yml'),
+  GITHUB_REF: z.string().default('master'),
 
   // 短信验证码（用于绑定手机号核验身份）
   // SMS_PROVIDER=dev：不调用真实短信，验证码写入日志并在响应中返回（仅便于联调，切勿用于生产）
@@ -131,6 +137,10 @@ export const config = Object.freeze({
   mailTo: raw.ATTENDANCE_MAIL_TO.split(',').map((s) => s.trim()).filter(Boolean),
   mailRelayEnabled: raw.MAIL_RELAY_ENABLED === 'true',
   mailRelayToken: raw.MAIL_RELAY_TOKEN,
+  githubToken: raw.GITHUB_TOKEN,
+  githubRepo: raw.GITHUB_REPO,
+  githubWorkflow: raw.GITHUB_WORKFLOW,
+  githubRef: raw.GITHUB_REF,
   smsProvider: raw.SMS_PROVIDER,
   smsConfigured: Boolean(
     raw.SMS_SECRET_ID && raw.SMS_SECRET_KEY && raw.SMS_SDK_APP_ID && raw.SMS_SIGN_NAME && raw.SMS_TEMPLATE_ID
