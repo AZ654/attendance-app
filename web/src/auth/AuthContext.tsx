@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { ProfileView, PublicUser, TokenResponse } from '../types';
-import { api, setAccessToken, getAccessToken } from '../api/client';
+import { api, setAccessToken, getAccessToken, setRefreshToken, getRefreshToken, tryRefresh } from '../api/client';
 
 interface AuthState {
   user: PublicUser | null;
@@ -58,6 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const applyTokens = useCallback((data: TokenResponse) => {
     setAccessToken(data.accessToken);
+    if (data.refreshToken) setRefreshToken(data.refreshToken);
     setUser(data.user);
   }, []);
 
@@ -80,10 +81,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setWechatConfigured(false);
       }
       try {
-        const refreshed = await api.post<TokenResponse>('/auth/refresh', undefined, { skipAuth: true });
-        applyTokens(refreshed);
-        // 刷新恢复会话时同样要拦截未绑手机号的微信用户，防止刷新页面绕过
-        await enforcePhoneBind(refreshed.user);
+        // 用持久化的续期令牌静默恢复登录态（兼容仅 Cookie 的旧会话）。
+        // tryRefresh 内部已 setAccessToken 并轮换更新 refreshToken，这里只还原 user。
+        const restored = await tryRefresh();
+        if (restored) {
+          setUser(restored.user);
+          // 恢复会话时同样要拦截未绑手机号的微信用户，防止刷新页面绕过
+          await enforcePhoneBind(restored.user);
+        } else {
+          setAccessToken(null);
+          setUser(null);
+        }
       } catch {
         setAccessToken(null);
         setUser(null);
@@ -147,9 +155,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     try {
-      await api.post('/auth/logout', undefined, { skipAuth: true });
+      await api.post('/auth/logout', { refreshToken: getRefreshToken() }, { skipAuth: true });
     } finally {
       setAccessToken(null);
+      setRefreshToken(null);
       setUser(null);
       setNeedPhoneBind(false);
     }

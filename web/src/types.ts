@@ -10,6 +10,8 @@ export interface PublicUser {
 
 export interface TokenResponse {
   accessToken: string;
+  /** 续期令牌：由后端下发，前端持久化后可在页面重开时静默恢复登录态。 */
+  refreshToken?: string;
   expiresIn: number;
   user: PublicUser;
 }

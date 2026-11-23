@@ -10,14 +10,26 @@ import type { TokenPair, WechatIdentity } from './auth.service.js';
 
 const QR_LOGIN_TTL_MS = 10 * 60 * 1000;
 
-/** 把令牌对中的刷新令牌写入 httpOnly Cookie，响应体只返回访问令牌与用户信息。 */
+/**
+ * 把刷新令牌写入 httpOnly Cookie，同时在响应体返回。
+ * 响应体返回是为了让前端存入 localStorage：微信浏览器阻止第三方 Cookie，
+ * 仅靠 Cookie 无法在页面重开后续期，必须给前端一份可持久化的续期令牌。
+ */
 function sendTokens(res: import('express').Response, tokens: TokenPair): void {
   setRefreshCookie(res, tokens.refreshToken);
   res.json({
     accessToken: tokens.accessToken,
+    refreshToken: tokens.refreshToken,
     expiresIn: tokens.expiresIn,
     user: tokens.user,
   });
+}
+
+/** 续期令牌来源：优先请求体（前端 localStorage），兼容旧版 httpOnly Cookie。 */
+function readRefreshToken(req: import('express').Request): string | undefined {
+  const fromBody = (req.body as { refreshToken?: unknown } | undefined)?.refreshToken;
+  if (typeof fromBody === 'string' && fromBody.length > 0) return fromBody;
+  return readCookie(req, 'rt');
 }
 
 /** 生成微信网页 OAuth 授权 URL，前端据此跳转。 */
@@ -145,13 +157,13 @@ export const loginByCode: RequestHandler = async (req, res) => {
 
 /** 刷新访问令牌：从 httpOnly Cookie 读取刷新令牌并轮换。 */
 export const refresh: RequestHandler = (req, res) => {
-  const token = readCookie(req, 'rt');
+  const token = readRefreshToken(req);
   if (!token) throw new UnauthorizedError('缺少刷新令牌');
   sendTokens(res, service.rotateRefreshToken(token));
 };
 
 export const logout: RequestHandler = (req, res) => {
-  const token = readCookie(req, 'rt');
+  const token = readRefreshToken(req);
   if (token) service.logoutRefreshToken(token);
   clearRefreshCookie(res);
   res.json({ success: true });

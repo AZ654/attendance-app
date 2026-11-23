@@ -16,15 +16,28 @@ const runtime = typeof window !== 'undefined' ? window.__APP_CONFIG__?.apiBase?.
 const injected = (import.meta.env.VITE_API_BASE as string | undefined)?.trim();
 const BASE = (runtime || injected || '/api').replace(/\/$/, '');
 
-/** 访问令牌只存内存，永不落 localStorage/sessionStorage；刷新令牌由 httpOnly Cookie 承载。 */
+/** 访问令牌只存内存；续期令牌落 localStorage，供页面重开后静默恢复登录态。 */
 let accessToken: string | null = null;
-let refreshPromise: Promise<boolean> | null = null;
+let refreshPromise: Promise<TokenResponse | null> | null = null;
+
+const RT_KEY = 'attendance_refresh_token';
 
 export function setAccessToken(token: string | null): void {
   accessToken = token;
 }
 export function getAccessToken(): string | null {
   return accessToken;
+}
+
+/** 持久化续期令牌。微信浏览器会阻止第三方 Cookie，必须靠 localStorage 才能跨页面续期。 */
+export function setRefreshToken(token: string | null): void {
+  try {
+    if (token) localStorage.setItem(RT_KEY, token);
+    else localStorage.removeItem(RT_KEY);
+  } catch { /* 隐私模式忽略 */ }
+}
+export function getRefreshToken(): string | null {
+  try { return localStorage.getItem(RT_KEY); } catch { return null; }
 }
 
 export class ApiClientError extends Error {
@@ -44,22 +57,29 @@ interface RequestOptions extends Omit<RequestInit, 'headers'> {
   timeout?: number;
 }
 
-/** 尝试用 httpOnly Cookie 刷新访问令牌（单例，避免并发重放）。 */
-async function tryRefresh(): Promise<boolean> {
+/**
+ * 尝试续期：优先用 localStorage 里的 refreshToken（通过请求体发送，绕开第三方 Cookie 限制），
+ * 兼容旧版仅靠 httpOnly Cookie 的场景。单例避免并发重放导致令牌被吊销。
+ * 成功后后端会轮换出新 refreshToken，一并更新到 localStorage。
+ */
+export async function tryRefresh(): Promise<TokenResponse | null> {
   if (refreshPromise) return refreshPromise;
   refreshPromise = (async () => {
     try {
+      const rt = getRefreshToken();
       const res = await fetch(`${BASE}/auth/refresh`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(rt ? { refreshToken: rt } : {}),
       });
-      if (!res.ok) return false;
+      if (!res.ok) return null;
       const data = (await res.json()) as TokenResponse;
       setAccessToken(data.accessToken);
-      return true;
+      if (data.refreshToken) setRefreshToken(data.refreshToken);
+      return data;
     } catch {
-      return false;
+      return null;
     } finally {
       refreshPromise = null;
     }
@@ -124,7 +144,9 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
         throw new ApiClientError(0, { code: 'NETWORK_ERROR', message: '网络连接失败，请检查网络后重试' });
       }
     } else {
+      // 续期令牌已失效/被吊销，清除本地存储避免反复用坏令牌请求
       setAccessToken(null);
+      setRefreshToken(null);
       throw new ApiClientError(401, { code: 'UNAUTHORIZED', message: '登录已过期，请重新登录' });
     }
   }
