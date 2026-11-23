@@ -49,8 +49,9 @@ export function LoginPage() {
   }, [params, loginByCode, navigate, busy]);
 
   useEffect(() => {
-    if (user) navigate('/', { replace: true });
-  }, [user, navigate]);
+    // URL 带 code（微信回调）时交给回调流程处理；扫码授权成功页也不跳转
+    if (user && !params.get('code') && !qrAuthorized) navigate('/', { replace: true });
+  }, [user, navigate, params, qrAuthorized]);
 
   // 电脑扫码：每 2 秒轮询授权结果，10 分钟后失效
   useEffect(() => {
