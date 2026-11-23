@@ -6,6 +6,7 @@ import { ConsentPage } from './pages/ConsentPage';
 import { CheckinPage } from './pages/CheckinPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { AdminPage } from './pages/AdminPage';
+import { PhoneBindSheet } from './components/PhoneBindSheet';
 
 function Loading() {
   return (
@@ -26,10 +27,12 @@ function Protected({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
-  const { loading } = useAuth();
+  const { loading, needPhoneBind } = useAuth();
   if (loading) return <Loading />;
 
   return (
+    <>
+    {needPhoneBind && <PhoneBindSheet />}
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route
@@ -74,5 +77,6 @@ export default function App() {
       />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </>
   );
 }

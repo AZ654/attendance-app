@@ -7,9 +7,9 @@ export const getProfile: RequestHandler = (req, res) => {
 };
 
 export const savePhone: RequestHandler = (req, res) => {
-  const { phone, consent } = req.body as { phone: string; consent: boolean };
-  const view = service.savePhone(req.auth!.sub, phone, consent);
-  logger.info({ userId: req.auth!.sub }, '手机号已保存');
+  const { phone, code, consent } = req.body as { phone: string; code: string; consent: boolean };
+  const view = service.savePhone(req.auth!.sub, phone, code, consent);
+  logger.info({ userId: req.auth!.sub }, '手机号已保存（短信验证码核验通过）');
   res.json(view);
 };
 

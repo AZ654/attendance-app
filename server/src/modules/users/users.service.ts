@@ -1,6 +1,7 @@
 import { usersRepository } from './users.repository.js';
 import { encrypt, decrypt, maskPhone, maskIdCard } from '../../lib/crypto.js';
 import { BadRequestError } from '../../lib/errors.js';
+import { verifyCode } from '../sms/sms.service.js';
 
 const PHONE_RE = /^1[3-9]\d{9}$/;
 const IDCARD_RE = /^[0-9]{17}[0-9Xx]$/;
@@ -46,10 +47,11 @@ export function getProfileView(userId: string): ProfileView {
   };
 }
 
-/** 保存自愿填写的手机号。consent=true 表示用户确认知晓用途。 */
-export function savePhone(userId: string, phone: string, consent: boolean): ProfileView {
+/** 保存手机号：需短信验证码核验本人 + 知情同意，加密存储。 */
+export function savePhone(userId: string, phone: string, code: string, consent: boolean): ProfileView {
   if (!consent) throw new BadRequestError('需要确认知情同意后才能保存手机号');
   if (!PHONE_RE.test(phone)) throw new BadRequestError('手机号格式不正确');
+  verifyCode(phone, code);
   usersRepository.upsertPhone(userId, encrypt(phone), Date.now());
   return getProfileView(userId);
 }

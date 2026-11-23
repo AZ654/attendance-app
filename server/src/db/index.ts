@@ -102,6 +102,17 @@ export function initSchema(): void {
       updated_at   INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_qr_login_expires ON qr_login_sessions(expires_at);
+
+    CREATE TABLE IF NOT EXISTS sms_codes (
+      id           TEXT PRIMARY KEY,
+      phone_hash   TEXT NOT NULL,
+      code_hash    TEXT NOT NULL,
+      expires_at   INTEGER NOT NULL,
+      attempts     INTEGER NOT NULL DEFAULT 0,
+      consumed_at  INTEGER,
+      created_at   INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_sms_phone ON sms_codes(phone_hash, created_at DESC);
   `);
 
   // 兼容已有数据库：为电脑端账号登录增加字段（幂等迁移）

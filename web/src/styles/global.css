@@ -123,3 +123,68 @@ a { color: var(--primary); text-decoration: none; }
   padding: 24px; box-shadow: 0 20px 50px rgba(0,0,0,.25);
 }
 .qr-image { display: block; width: 260px; height: 260px; margin: 0 auto 14px; border: 1px solid var(--border); border-radius: 8px; }
+
+/* ===== 仿微信手机号授权弹层 ===== */
+.wx-auth-mask {
+  position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,.45);
+  display: flex; flex-direction: column; justify-content: flex-end;
+}
+.wx-auth-top {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 12px; padding-bottom: 40px;
+}
+.wx-app-icon {
+  width: 64px; height: 64px; border-radius: 16px; background: var(--primary); color: #fff;
+  display: grid; place-items: center; font-size: 34px; font-weight: 800;
+  box-shadow: 0 8px 24px rgba(0,0,0,.2);
+}
+.wx-app-name { color: #fff; font-size: 16px; font-weight: 600; text-shadow: 0 1px 4px rgba(0,0,0,.4); }
+.wx-sheet {
+  background: #1c1c1e; color: #f2f2f2; border-radius: 18px 18px 0 0;
+  padding: 22px 20px calc(20px + env(safe-area-inset-bottom));
+  animation: wx-slide-up .22s ease-out;
+}
+@keyframes wx-slide-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+.wx-sheet-head { display: flex; align-items: center; gap: 10px; }
+.wx-avatar {
+  width: 40px; height: 40px; border-radius: 50%; background: #3a3a3c; color: #fff;
+  display: grid; place-items: center; font-size: 18px; font-weight: 600;
+}
+.wx-app-title { font-size: 15px; flex: 1; }
+.wx-info {
+  width: 22px; height: 22px; border-radius: 50%; border: 1px solid #6b6b6f;
+  background: transparent; color: #9a9a9e; font-size: 13px; font-style: italic; font-weight: 700;
+}
+.wx-sheet-title { font-size: 18px; font-weight: 700; margin: 22px 0 8px; }
+.wx-sheet-desc { font-size: 13px; line-height: 1.7; color: #9a9a9e; margin: 0 0 18px; }
+.wx-phone-box {
+  background: #2c2c2e; border-radius: 12px; padding: 16px; margin-bottom: 14px;
+}
+.wx-field-label { display: block; font-size: 12px; color: #9a9a9e; margin-bottom: 8px; }
+.wx-phone-input, .wx-code-input {
+  width: 100%; border: none; border-bottom: 1px solid #48484a; background: transparent;
+  color: #fff; font-size: 20px; padding: 10px 2px; outline: none; letter-spacing: 1px;
+}
+.wx-phone-input::placeholder, .wx-code-input::placeholder { color: #6b6b6f; font-size: 14px; letter-spacing: 0; }
+.wx-code-row { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
+.wx-code-input { flex: 1; font-size: 16px; }
+.wx-send-btn {
+  flex-shrink: 0; border: none; background: #3a3a3c; color: #4da3ff;
+  border-radius: 8px; padding: 9px 12px; font-size: 13px; font-weight: 600;
+}
+.wx-send-btn:disabled { opacity: .5; cursor: not-allowed; }
+.wx-dev-code { font-size: 12px; color: #f5c56b; margin: 12px 0 0; line-height: 1.6; }
+.wx-sent-tip { font-size: 12px; color: #9a9a9e; margin: 12px 0 0; }
+.wx-error { font-size: 12px; color: #ff6b6b; margin: 12px 0 0; }
+.wx-allow-btn {
+  width: 100%; border: none; border-radius: 12px; background: #07c160; color: #fff;
+  font-size: 16px; font-weight: 700; padding: 14px; margin-bottom: 10px;
+}
+.wx-allow-btn:active { opacity: .85; }
+.wx-allow-btn:disabled { opacity: .5; cursor: not-allowed; }
+.wx-deny-btn {
+  width: 100%; border: none; border-radius: 12px; background: #3a3a3c; color: #f2f2f2;
+  font-size: 16px; font-weight: 600; padding: 14px;
+}
+.wx-deny-btn:disabled { opacity: .5; cursor: not-allowed; }
+.wx-footnote { font-size: 11px; color: #6b6b6f; text-align: center; line-height: 1.6; margin: 16px 0 0; }

@@ -61,6 +61,16 @@ const schema = z.object({
   MAIL_RELAY_ENABLED: z.enum(['true', 'false']).default('false'),
   MAIL_RELAY_TOKEN: z.string().default(''),
 
+  // 短信验证码（用于绑定手机号核验身份）
+  // SMS_PROVIDER=dev：不调用真实短信，验证码写入日志并在响应中返回（仅便于联调，切勿用于生产）
+  // SMS_PROVIDER=tencent：调用腾讯云短信；需配置下面 4 项
+  SMS_PROVIDER: z.enum(['dev', 'tencent']).default('dev'),
+  SMS_SECRET_ID: z.string().default(''),
+  SMS_SECRET_KEY: z.string().default(''),
+  SMS_SDK_APP_ID: z.string().default(''),
+  SMS_SIGN_NAME: z.string().default(''),
+  SMS_TEMPLATE_ID: z.string().default(''),
+
   PII_ENCRYPTION_KEY: hex32,
 });
 
@@ -121,6 +131,10 @@ export const config = Object.freeze({
   mailTo: raw.ATTENDANCE_MAIL_TO.split(',').map((s) => s.trim()).filter(Boolean),
   mailRelayEnabled: raw.MAIL_RELAY_ENABLED === 'true',
   mailRelayToken: raw.MAIL_RELAY_TOKEN,
+  smsProvider: raw.SMS_PROVIDER,
+  smsConfigured: Boolean(
+    raw.SMS_SECRET_ID && raw.SMS_SECRET_KEY && raw.SMS_SDK_APP_ID && raw.SMS_SIGN_NAME && raw.SMS_TEMPLATE_ID
+  ),
   workDays: raw.WORK_DAYS.split(',').map((s) => Number(s.trim())).filter((n) => n >= 0 && n <= 6),
   smtpSecure: raw.SMTP_SECURE === 'true',
   geoReverseEnabled:

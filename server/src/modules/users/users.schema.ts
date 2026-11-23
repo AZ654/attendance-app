@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 export const savePhoneSchema = z.object({
   phone: z.string().regex(/^1[3-9]\d{9}$/, '手机号格式不正确'),
+  code: z.string().regex(/^\d{6}$/, '需要 6 位短信验证码'),
   consent: z.literal(true, { errorMap: () => ({ message: '需要确认知情同意' }) }),
 });
 

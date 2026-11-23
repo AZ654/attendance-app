@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
-import type { PublicUser, TokenResponse } from '../types';
+import type { ProfileView, PublicUser, TokenResponse } from '../types';
 import { api, setAccessToken, getAccessToken } from '../api/client';
 
 interface AuthState {
@@ -8,6 +8,8 @@ interface AuthState {
   devMode: boolean | null;
   passwordLoginEnabled: boolean;
   wechatConfigured: boolean;
+  needPhoneBind: boolean;
+  dismissPhoneBind: () => void;
   loginDev: (openid?: string) => Promise<void>;
   loginPassword: (username: string, password: string) => Promise<void>;
   loginByCode: (code: string, state?: string) => Promise<void>;
@@ -25,6 +27,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [devMode, setDevMode] = useState<boolean | null>(null);
   const [passwordLoginEnabled, setPasswordLoginEnabled] = useState(true);
   const [wechatConfigured, setWechatConfigured] = useState(true);
+  const [needPhoneBind, setNeedPhoneBind] = useState(false);
+
+  const dismissPhoneBind = useCallback(() => setNeedPhoneBind(false), []);
+
+  /** 微信登录后检查是否已绑定手机号，未绑定则弹出授权引导。 */
+  const maybePromptPhoneBind = useCallback(async () => {
+    try {
+      const profile = await api.get<ProfileView>('/users/me/profile');
+      if (!profile.hasPhone) setNeedPhoneBind(true);
+    } catch {
+      // 查询失败不阻断登录，用户仍可在「我的」页手动绑定
+    }
+  }, []);
 
   const applyTokens = useCallback((data: TokenResponse) => {
     setAccessToken(data.accessToken);
@@ -81,8 +96,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (code: string, state?: string) => {
       const data = await api.post<TokenResponse>('/auth/login-by-code', { code, state }, { skipAuth: true });
       applyTokens(data);
+      await maybePromptPhoneBind();
     },
-    [applyTokens],
+    [applyTokens, maybePromptPhoneBind],
   );
 
   const startQrLogin = useCallback(
@@ -98,11 +114,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       );
       if ('accessToken' in data) {
         applyTokens(data);
+        await maybePromptPhoneBind();
         return true;
       }
       return false;
     },
-    [applyTokens],
+    [applyTokens, maybePromptPhoneBind],
   );
 
   const logout = useCallback(async () => {
@@ -111,6 +128,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setAccessToken(null);
       setUser(null);
+      setNeedPhoneBind(false);
     }
   }, []);
 
@@ -123,7 +141,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider
       value={{
-        user, loading, devMode, passwordLoginEnabled, wechatConfigured,
+        user, loading, devMode, passwordLoginEnabled, wechatConfigured, needPhoneBind, dismissPhoneBind,
         loginDev, loginPassword, loginByCode, startQrLogin, checkQrLogin, logout, refreshUser,
       }}
     >
