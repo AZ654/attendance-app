@@ -18,6 +18,8 @@ export function LoginPage() {
   const [devOpenid, setDevOpenid] = useState('');
   const [qr, setQr] = useState<{ state: string; authUrl: string; dataUrl: string } | null>(null);
   const [qrMessage, setQrMessage] = useState('');
+  // 手机为电脑扫码授权成功后显示成功页，不进入考勤主界面
+  const [qrAuthorized, setQrAuthorized] = useState(false);
 
   // 微信 OAuth 回调：URL 带 code 时用 code + state 登录
   useEffect(() => {
@@ -28,9 +30,16 @@ export function LoginPage() {
       setBusy(true);
       setError('');
       try {
-        await loginByCode(code, state);
-        // replace 模式替换当前历史记录，URL 中的一次性 code 随之清除
-        navigate('/', { replace: true });
+        const isQrGrant = await loginByCode(code, state);
+        if (isQrGrant) {
+          // 手机扫码为电脑授权：留在成功页，不登录手机、不跳转主界面
+          setQrAuthorized(true);
+          // 清掉 URL 中的一次性 code，防止刷新重复授权
+          navigate('/login', { replace: true });
+        } else {
+          // replace 模式替换当前历史记录，URL 中的一次性 code 随之清除
+          navigate('/', { replace: true });
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : '微信登录失败');
       } finally {
@@ -141,6 +150,23 @@ export function LoginPage() {
 
   const showWechat = devMode === false && wechatConfigured;
   const showDev = devMode === true;
+
+  // 手机扫码授权完成：显示成功提示，等待电脑端自动登录
+  if (qrAuthorized) {
+    return (
+      <div className="app-shell">
+        <div className="login-hero">
+          <div className="big-icon">✅</div>
+          <h2>授权成功</h2>
+        </div>
+        <div className="card" style={{ textAlign: 'center' }}>
+          <p style={{ fontSize: 17, fontWeight: 600, margin: '16px 0' }}>登录成功</p>
+          <p className="muted">你已在手机上完成微信授权，请返回电脑端查看，电脑将自动完成登录。</p>
+          <p className="muted small mt8">此页面仅用于确认授权，手机无需再次操作。</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="app-shell">

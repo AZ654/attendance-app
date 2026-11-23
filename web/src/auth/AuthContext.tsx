@@ -13,7 +13,8 @@ interface AuthState {
   requirePhoneBind: () => Promise<void>;
   loginDev: (openid?: string) => Promise<void>;
   loginPassword: (username: string, password: string) => Promise<void>;
-  loginByCode: (code: string, state?: string) => Promise<void>;
+  /** 返回 true 表示这是"手机为电脑扫码授权"（手机未登录）；false 表示手机已登录。 */
+  loginByCode: (code: string, state?: string) => Promise<boolean>;
   startQrLogin: () => Promise<{ state: string; authUrl: string; expiresIn: number }>;
   checkQrLogin: (state: string) => Promise<boolean>;
   logout: () => Promise<void>;
@@ -113,9 +114,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loginByCode = useCallback(
     async (code: string, state?: string) => {
-      const data = await api.post<TokenResponse>('/auth/login-by-code', { code, state }, { skipAuth: true });
+      const data = await api.post<TokenResponse | { qrAuthorized: boolean }>('/auth/login-by-code', { code, state }, { skipAuth: true });
+      // 扫码授权：后端只回写授权给电脑，并未给手机签发令牌，手机端显示成功页即可
+      if ('qrAuthorized' in data) return true;
       applyTokens(data);
       await enforcePhoneBind(data.user);
+      return false;
     },
     [applyTokens, enforcePhoneBind],
   );

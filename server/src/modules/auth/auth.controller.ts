@@ -118,18 +118,28 @@ export const wechatCallback: RequestHandler = async (req, res) => {
   sendTokens(res, service.loginWithWechatIdentity(identity));
 };
 
-/** 用 code 直接登录（前端拿到 code 后调用，返回令牌对）。 */
+/** 用 code 完成微信授权：手机直接登录返回令牌；电脑扫码授权只回写会话，不登录手机。 */
 export const loginByCode: RequestHandler = async (req, res) => {
   const { code, state } = req.body as { code: string; state?: string };
   if (!code) throw new BadRequestError('缺少 code');
   // 真实 OAuth 流程必须校验 state；开发模式用模拟身份，不走此路径。
   if (!config.isDevMode) assertOAuthState(state);
   const identity = await service.exchangeCodeForIdentity(code);
-  const tokens = service.loginWithWechatIdentity(identity);
-  // 若该 state 来自电脑扫码登录，手机授权后把身份写回会话，电脑端轮询即可完成登录。
+
+  // 区分两种回调：state 命中待授权的扫码会话 = 手机为电脑扫码授权；
+  // 此时只把身份写回会话供电脑端轮询，不给手机签发令牌，手机端展示"授权成功"即可。
   if (state && typeof state === 'string') {
-    authRepository.authorizeQrLoginSession(state, JSON.stringify(identity), Date.now());
+    const session = authRepository.findQrLoginSession(state);
+    // 只要 state 对应扫码会话就按"为电脑授权"处理（重复回调也幂等，不会误登录手机）
+    if (session) {
+      authRepository.authorizeQrLoginSession(state, JSON.stringify(identity), Date.now());
+      res.json({ qrAuthorized: true });
+      return;
+    }
   }
+
+  // 手机端直接微信登录：正常签发令牌。
+  const tokens = service.loginWithWechatIdentity(identity);
   sendTokens(res, tokens);
 };
 
