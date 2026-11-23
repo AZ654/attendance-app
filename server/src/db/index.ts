@@ -94,16 +94,14 @@ export function initSchema(): void {
     CREATE INDEX IF NOT EXISTS idx_mail_status ON mail_jobs(status, next_attempt_at);
 
     CREATE TABLE IF NOT EXISTS qr_login_sessions (
-      id            TEXT PRIMARY KEY,
-      status        TEXT NOT NULL DEFAULT 'pending',
-      access_token  TEXT,
-      refresh_token TEXT,
-      user_json     TEXT,
-      expires_at    INTEGER NOT NULL,
-      created_at    INTEGER NOT NULL,
-      updated_at    INTEGER NOT NULL
+      state        TEXT PRIMARY KEY,
+      status       TEXT NOT NULL DEFAULT 'pending',
+      identity_json TEXT,
+      expires_at   INTEGER NOT NULL,
+      created_at   INTEGER NOT NULL,
+      updated_at   INTEGER NOT NULL
     );
-    CREATE INDEX IF NOT EXISTS idx_qr_session_expiry ON qr_login_sessions(expires_at);
+    CREATE INDEX IF NOT EXISTS idx_qr_login_expires ON qr_login_sessions(expires_at);
   `);
 
   // 兼容已有数据库：为电脑端账号登录增加字段（幂等迁移）
