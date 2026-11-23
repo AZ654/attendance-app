@@ -64,7 +64,9 @@ export function createApp() {
     limit: 100,
     standardHeaders: 'draft-7',
     legacyHeaders: false,
-    skip: (req) => req.method === 'GET' && req.originalUrl.startsWith('/api/auth/wechat/url'),
+    skip: (req) =>
+      (req.method === 'GET' && req.originalUrl.startsWith('/api/auth/wechat/url')) ||
+      (req.method === 'GET' && req.originalUrl.startsWith('/api/auth/qr-status')),
     message: { error: { code: 'TOO_MANY_REQUESTS', message: '操作过于频繁，请稍后再试' } },
   });
 
