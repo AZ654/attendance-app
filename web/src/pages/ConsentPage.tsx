@@ -55,15 +55,9 @@ export function ConsentPage() {
           mode: 'active',
           address: pos.address ?? null,
         });
-        if (res.note) {
-          // 非工作时段被服务端拦截，仍视为采集到的位置但未落库
-          setCaptureError(`当前非工作时段，位置未计入考勤记录（${res.note}）`);
-          setCapturePhase('error');
-        } else {
-          setCaptureResult(res);
-          setCapturePhase('done');
-          setMsg('✅ 授权成功，已完成首次位置采集');
-        }
+        setCaptureResult(res);
+        setCapturePhase('done');
+        setMsg('✅ 授权成功，已完成首次位置采集');
       } catch (e) {
         // 定位失败不回滚已生效的授权，仅提示可稍后手动重试
         setCaptureError(e instanceof Error ? e.message : '位置采集失败');
@@ -106,7 +100,7 @@ export function ConsentPage() {
             <ul>
               <li><b>目的：</b>{notice.purpose}</li>
               <li><b>范围：</b>{notice.scope}</li>
-              <li><b>工作时段：</b>{notice.workWindow}（仅此时段自动上报）</li>
+              <li><b>工作时段：</b>{notice.workWindow}（标准考勤时段；其他时段上报会标注为时段外）</li>
               <li><b>通知接收：</b>{notice.recipients.join('、')}</li>
               <li><b>撤回方式：</b>{notice.revocable}</li>
             </ul>
@@ -117,7 +111,7 @@ export function ConsentPage() {
           <>
             <label className="checkbox-row">
               <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} />
-              <span>我已阅读并理解上述告知内容，<b>自愿同意</b>在工作时段内采集并上报本人位置用于考勤。</span>
+              <span>我已阅读并理解上述告知内容，<b>自愿同意</b>采集并上报本人位置用于考勤。</span>
             </label>
             <button className="btn btn-block" disabled={!ack || busy} onClick={handleGrant}>
               {busy ? (capturePhase === 'locating' ? '采集中...' : '提交中...') : '确认授权并立即采集'}

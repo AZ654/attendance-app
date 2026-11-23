@@ -29,7 +29,7 @@ export function CheckinPage() {
     loadHistory().catch(() => {});
   }, [loadConsent, loadHistory]);
 
-  /** 执行一次上报。active=用户主动；auto=授权后工作时段自动。 */
+  /** 执行一次上报。active=用户主动；auto=授权后自动。任何定位打卡都会落库并发邮件。 */
   const doReport = useCallback(async (mode: 'active' | 'auto') => {
     setPhase(mode === 'active' ? 'locating' : phase);
     setError('');
@@ -45,36 +45,24 @@ export function CheckinPage() {
         mode,
         address: pos.address ?? null,
       });
-      if (!res.note) {
-        setResult(res);
-        setPhase('done');
-        loadHistory().catch(() => {});
-      } else {
-        // 非工作时段自动上报被服务端拦截
-        setPhase('idle');
-      }
+      setResult(res);
+      setPhase('done');
+      loadHistory().catch(() => {});
     } catch (e) {
       setError(e instanceof Error ? e.message : '打卡失败');
       setPhase('error');
     }
   }, [phase, loadHistory]);
 
-  /** 授权后自动上报：每 10 分钟一次，仅工作时段生效（服务端也会再次校验）。 */
+  /** 授权后自动上报：每 10 分钟一次，全天候上报（任何一次定位打卡都会发邮件通知）。 */
   useEffect(() => {
     if (!consent?.active) {
       if (autoTimer.current) { window.clearInterval(autoTimer.current); autoTimer.current = null; }
       return;
     }
-    const isWorkTime = () => {
-      const d = new Date();
-      const day = d.getDay();
-      if (day === 0 || day === 6) return false;
-      const hhmm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-      return hhmm >= '09:00' && hhmm <= '18:00';
-    };
-    const tick = () => { if (isWorkTime()) doReport('auto').catch(() => {}); };
+    const tick = () => { doReport('auto').catch(() => {}); };
     // 进入时先上报一次
-    if (isWorkTime()) tick();
+    tick();
     autoTimer.current = window.setInterval(tick, 10 * 60 * 1000);
     return () => {
       if (autoTimer.current) { window.clearInterval(autoTimer.current); autoTimer.current = null; }
@@ -138,7 +126,7 @@ export function CheckinPage() {
           {phase === 'locating' || phase === 'reporting' ? '处理中...' : '📍 立即打卡（主动上报）'}
         </button>
         <p className="muted small mt8" style={{ textAlign: 'center' }}>
-          授权后，工作时段内每 10 分钟自动上报一次，无需手动操作
+          授权后每 10 分钟自动上报一次，无需手动操作；每次定位打卡都会发送邮件通知
         </p>
       </div>
 

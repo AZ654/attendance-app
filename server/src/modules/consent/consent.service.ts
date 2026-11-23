@@ -32,7 +32,7 @@ export function consentNotice() {
   return {
     title: '位置采集单独授权',
     purpose: '仅用于员工考勤打卡与出勤核对',
-    scope: `采集您设备的 GPS/网络位置，工作时段内自动上报，考勤判定范围 ${config.ATTENDANCE_RADIUS_METERS} 米`,
+    scope: `采集您设备的 GPS/网络位置，授权后定时自动上报，考勤判定范围 ${config.ATTENDANCE_RADIUS_METERS} 米`,
     workWindow: `${config.WORK_START_TIME} - ${config.WORK_END_TIME}`,
     recipients: config.mailTo.length ? config.mailTo : ['（未配置通知邮箱）'],
     retention: '位置记录仅用于考勤核对，保留期由管理员配置',

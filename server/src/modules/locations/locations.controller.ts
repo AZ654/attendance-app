@@ -16,9 +16,6 @@ export const report: RequestHandler = async (req, res) => {
     mode: body.mode,
     address: body.address,
   });
-  if (result.autoModeBlocked) {
-    return res.json({ ...result, note: '当前非工作时段，自动上报未记录' });
-  }
   logger.info(
     { userId: req.auth!.sub, locationId: result.id, within: result.withinGeofence, mode: body.mode },
     '位置上报成功',

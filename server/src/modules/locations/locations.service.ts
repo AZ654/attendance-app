@@ -41,21 +41,15 @@ function validateInput(input: ReportLocationInput): void {
   if (!['active', 'auto'].includes(input.mode)) throw new BadRequestError('上报模式无效');
 }
 
-/** 上报位置：校验有效授权 → 自动模式需在工作时段 → 逆地理编码 → 计算范围 → 落库 → 异步发通知邮件。 */
+/** 上报位置：校验有效授权 → 逆地理编码 → 计算范围 → 落库 → 异步发通知邮件（任何定位打卡都记录并通知）。 */
 export async function reportLocation(input: ReportLocationInput): Promise<ReportResult> {
   validateInput(input);
 
   const consent = consentRepository.getActive(input.userId);
   if (!consent) throw new ForbiddenError('未找到有效位置采集授权，请先完成授权');
 
-  // 自动上报模式：仅在工作时段内生效；不合规则记录为被拦截，不落库
-  if (input.mode === 'auto' && !isWithinWorkWindow()) {
-    return {
-      id: '', withinGeofence: false, distanceM: null, address: null,
-      recordedAt: Date.now(), autoModeBlocked: true,
-    };
-  }
-
+  // 工作时段仅用于邮件标注，不再拦截：只要有定位打卡就落库并发邮件。
+  const withinWorkWindow = isWithinWorkWindow();
   const now = Date.now();
   const distance = haversineDistance(input.latitude, input.longitude, OFFICE_LAT, OFFICE_LNG);
   const within = distance <= config.ATTENDANCE_RADIUS_METERS;
@@ -80,8 +74,8 @@ export async function reportLocation(input: ReportLocationInput): Promise<Report
   };
   locationsRepository.insert(row);
 
-  // 异步邮件任务，不阻塞请求
-  enqueueLocationMail(row, consent);
+  // 异步邮件任务，不阻塞请求；任何定位打卡都通知
+  enqueueLocationMail(row, consent, withinWorkWindow);
 
   return {
     id: row.id,
@@ -92,17 +86,18 @@ export async function reportLocation(input: ReportLocationInput): Promise<Report
   };
 }
 
-function enqueueLocationMail(row: LocationRow, consent: ConsentRow): void {
+function enqueueLocationMail(row: LocationRow, consent: ConsentRow, withinWorkWindow: boolean): void {
   if (!config.mailTo.length) return;
   const user = authRepository.findUserById(row.user_id);
   const name = (user?.nickname ?? '员工').replace(/[<>&"']/g, '');
   const status = row.within_geofence ? '✅ 考勤范围内' : '⚠️ 考勤范围外';
-  const subject = `考勤位置上报 - ${name} - ${status}`;
+  const timeStatus = withinWorkWindow ? '工作时段内' : '⚠️ 工作时段外';
+  const subject = `考勤位置上报 - ${name} - ${status} - ${timeStatus}`;
   const html = `
     <div style="font-family:sans-serif;line-height:1.6">
       <h3>考勤位置上报通知</h3>
       <p>员工：<b>${name}</b></p>
-      <p>状态：<b>${status}</b></p>
+      <p>状态：<b>${status}</b>　时段：<b>${timeStatus}</b></p>
       <p>时间：${new Date(row.recorded_at).toLocaleString('zh-CN')}</p>
       <p>坐标：${row.latitude.toFixed(6)}, ${row.longitude.toFixed(6)}（精度 ${row.accuracy_m ?? '未知'} 米）</p>
       <p>定位来源：${row.source}　模式：${row.mode === 'active' ? '主动上报' : '自动上报'}</p>
