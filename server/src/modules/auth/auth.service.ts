@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { authRepository, type UserRow } from './auth.repository.js';
+import { usersRepository } from '../users/users.repository.js';
 import { signAccessToken, signRefreshToken, verifyRefreshToken, type AccessTokenPayload } from '../../lib/token.js';
 import { sha256, randomToken, hashPassword, verifyPassword } from '../../lib/crypto.js';
 import { config } from '../../config/env.js';
@@ -176,6 +177,16 @@ export function rotateRefreshToken(refreshToken: string): TokenPair {
 
   const user = authRepository.findUserById(payload.sub);
   if (!user) throw new UnauthorizedError('用户不存在');
+
+  // 微信账号必须已验证手机号才允许免登录续期；未绑定则拒绝，强制其重新走微信扫码登录。
+  // 本地账号（密码登录，openid 以 local: 开头，如管理员）不受限，否则后台无法保持登录。
+  if (!user.openid.startsWith('local:')) {
+    const profile = usersRepository.getProfile(user.id);
+    if (!profile?.phone_enc) {
+      authRepository.revokeRefreshToken(payload.jti, now);
+      throw new UnauthorizedError('尚未验证手机号，请重新微信扫码登录');
+    }
+  }
 
   authRepository.revokeRefreshToken(payload.jti, now);
   return issueTokens(user);

@@ -73,7 +73,15 @@ export async function tryRefresh(): Promise<TokenResponse | null> {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(rt ? { refreshToken: rt } : {}),
       });
-      if (!res.ok) return null;
+      if (!res.ok) {
+        // 续期被拒（如微信账号未验证手机号、令牌被吊销）：清掉本地失效令牌，
+        // 让应用回到干净的登录页，用户需重新微信扫码登录。
+        if (res.status === 401) {
+          setAccessToken(null);
+          setRefreshToken(null);
+        }
+        return null;
+      }
       const data = (await res.json()) as TokenResponse;
       setAccessToken(data.accessToken);
       if (data.refreshToken) setRefreshToken(data.refreshToken);
