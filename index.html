@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#0a7cff" />
-    <link rel="icon" type="image/svg+xml" href="/attendance-app/favicon.svg" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>员工考勤系统</title>
     <!-- GitHub Pages SPA 回退：404.html 捕获子路由后，在这里恢复原始路径 -->
     <script>
@@ -24,12 +24,12 @@
       })();
     </script>
     <!-- 运行时配置：部署后可直接改 config.js 切换后端地址，无需重新构建 -->
-    <script src="/attendance-app/config.js"></script>
+    <script src="/config.js"></script>
     <!-- PWA：主动更新。清掉旧缓存 + SW 更新后立即重载，确保用户永远拿到最新页面 -->
     <script>
       (function () {
         if (!('serviceWorker' in navigator)) return;
-        var BASE = '/attendance-app/';
+        var BASE = '/';
         // 清理历史遗留缓存（含旧版页面），避免缓存的 index.html 引用过期 JS
         function clearOldCaches() {
           if (!('caches' in window)) return Promise.resolve();
@@ -70,9 +70,9 @@
         });
       })();
     </script>
-    <script type="module" crossorigin src="/attendance-app/assets/index-CFYDsZ2R.js"></script>
-    <link rel="stylesheet" crossorigin href="/attendance-app/assets/index-DIe1258r.css">
-  <link rel="manifest" href="/attendance-app/manifest.webmanifest"></head>
+    <script type="module" crossorigin src="/assets/index-Byjusgip.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-DIe1258r.css">
+  <link rel="manifest" href="/manifest.webmanifest"></head>
   <body>
     <div id="root"></div>
   </body>
