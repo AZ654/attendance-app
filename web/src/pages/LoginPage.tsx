@@ -1,12 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import * as QRCode from 'qrcode';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { api } from '../api/client';
+import type { TokenResponse } from '../types';
 
 export function LoginPage() {
   const {
     user, devMode, passwordLoginEnabled, wechatConfigured,
-    loginDev, loginPassword, loginByCode,
+    loginDev, loginPassword, loginByCode, loginWithQrSession,
   } = useAuth();
   const navigate = useNavigate();
   const [params] = useSearchParams();
@@ -15,6 +17,12 @@ export function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [devOpenid, setDevOpenid] = useState('');
+  const [qrOpen, setQrOpen] = useState(false);
+  const [qrSessionId, setQrSessionId] = useState('');
+  const [qrImage, setQrImage] = useState('');
+  const [qrError, setQrError] = useState('');
+  const [qrStatus, setQrStatus] = useState<'pending' | 'expired'>('pending');
+  const pollRef = useRef<number | null>(null);
 
   // 微信 OAuth 回调：URL 带 code 时用 code + state 登录
   useEffect(() => {
@@ -54,6 +62,66 @@ export function LoginPage() {
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : '获取微信登录地址失败');
+      setBusy(false);
+    }
+  };
+
+  const stopQrPolling = () => {
+    if (pollRef.current !== null) {
+      window.clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  };
+
+  const closeQr = () => {
+    stopQrPolling();
+    setQrOpen(false);
+    setQrSessionId('');
+    setQrImage('');
+    setQrError('');
+    setQrStatus('pending');
+  };
+
+  useEffect(() => () => stopQrPolling(), []);
+
+  const handleQrLogin = async () => {
+    setQrOpen(true);
+    setQrError('');
+    setQrStatus('pending');
+    setQrImage('');
+    setBusy(true);
+    stopQrPolling();
+    try {
+      const res = await api.post<{ sessionId: string; authUrl: string; expiresIn: number }>(
+        '/auth/qrcode/session',
+        undefined,
+        { skipAuth: true },
+      );
+      const dataUrl = await QRCode.toDataURL(res.authUrl, { width: 260, margin: 1, errorCorrectionLevel: 'M' });
+      setQrSessionId(res.sessionId);
+      setQrImage(dataUrl);
+      pollRef.current = window.setInterval(async () => {
+        try {
+          const status = await api.get<
+            { status: 'pending' | 'logged_in' | 'expired' } & Partial<TokenResponse>
+          >(`/auth/qrcode/status?sessionId=${encodeURIComponent(res.sessionId)}`, { skipAuth: true });
+          if (status.status === 'logged_in' && status.accessToken && status.user) {
+            stopQrPolling();
+            await loginWithQrSession(status as TokenResponse);
+            closeQr();
+            navigate('/', { replace: true });
+          } else if (status.status === 'expired') {
+            stopQrPolling();
+            setQrStatus('expired');
+            setQrError('二维码已过期，请重新生成');
+          }
+        } catch {
+          // 轮询中的瞬时网络错误忽略，下一轮继续
+        }
+      }, 2000);
+    } catch (e) {
+      setQrError(e instanceof Error ? e.message : '获取微信二维码失败');
+    } finally {
       setBusy(false);
     }
   };
@@ -133,11 +201,14 @@ export function LoginPage() {
 
       {showWechat && (
         <div className="card">
-          <button className="btn btn-block" onClick={handleWechatLogin} disabled={busy}>
+          <button className="btn btn-block" onClick={handleQrLogin} disabled={busy}>
+            微信扫码登录（电脑）
+          </button>
+          <button className="btn btn-block mt8" onClick={handleWechatLogin} disabled={busy}>
             微信登录（手机）
           </button>
           <p className="muted small mt8" style={{ textAlign: 'center' }}>
-            将跳转微信授权，仅获取公开账号信息（昵称、头像）
+            电脑端扫码后用手机微信确认授权；仅获取公开账号信息（昵称、头像）
           </p>
         </div>
       )}
@@ -162,6 +233,34 @@ export function LoginPage() {
 
       {devMode !== null && !passwordLoginEnabled && !showWechat && !showDev && (
         <div className="alert alert-error">服务端未启用任何登录方式，请联系管理员。</div>
+      )}
+
+      {qrOpen && (
+        <div className="qr-overlay" onClick={closeQr}>
+          <div className="qr-modal" onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ marginTop: 0 }}>微信扫码登录</h3>
+            {qrImage ? (
+              <>
+                <img className="qr-image" src={qrImage} alt="微信登录二维码" />
+                <p className="muted small" style={{ textAlign: 'center', lineHeight: 1.6 }}>
+                  请用手机微信「扫一扫」扫描二维码，<br />并在手机上点击「确认登录」
+                </p>
+                <p className="tiny muted" style={{ textAlign: 'center' }}>
+                  会话 {qrSessionId.slice(0, 8)} · 5 分钟内有效
+                </p>
+              </>
+            ) : (
+              <div className="loading" style={{ padding: 30 }}>正在生成二维码...</div>
+            )}
+            {qrError && <div className="alert alert-error mt8">{qrError}</div>}
+            <div className="row mt16">
+              {qrStatus === 'expired' && (
+                <button className="btn" onClick={handleQrLogin} disabled={busy}>重新生成</button>
+              )}
+              <button className="btn btn-block" onClick={closeQr}>取消</button>
+            </div>
+          </div>
+        </div>
       )}
 
       <div className="notice-box">
