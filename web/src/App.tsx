@@ -17,22 +17,24 @@ function Loading() {
   );
 }
 
-/** 路由守卫：未登录跳转登录页。 */
+/** 路由守卫：未登录跳转登录页；微信账号未绑定手机号时只显示绑定弹层。 */
 function Protected({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, loading, needPhoneBind } = useAuth();
   const location = useLocation();
   if (loading) return <Loading />;
   if (!user) return <Navigate to="/login" state={{ from: location.pathname }} replace />;
+  if (needPhoneBind) return <PhoneBindSheet />;
   return <>{children}</>;
 }
 
 export default function App() {
   const { loading, needPhoneBind } = useAuth();
   if (loading) return <Loading />;
+  // 微信账号未完成手机号绑定：全局只渲染绑定弹层，屏蔽所有主界面路由
+  if (needPhoneBind) return <PhoneBindSheet />;
 
   return (
     <>
-    {needPhoneBind && <PhoneBindSheet />}
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route

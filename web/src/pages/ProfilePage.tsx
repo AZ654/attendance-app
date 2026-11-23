@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
@@ -10,9 +10,14 @@ const EMPTY: ProfileView = {
 };
 
 export function ProfilePage() {
-  const { user, logout, refreshUser } = useAuth();
+  const { user, logout, refreshUser, requirePhoneBind } = useAuth();
   const navigate = useNavigate();
   const [profile, setProfile] = useState<ProfileView>(EMPTY);
+  const [phoneCode, setPhoneCode] = useState('');
+  const [phoneDevCode, setPhoneDevCode] = useState('');
+  const [phoneCountdown, setPhoneCountdown] = useState(0);
+  const phoneTimer = useRef<number | null>(null);
+  useEffect(() => () => { if (phoneTimer.current) window.clearInterval(phoneTimer.current); }, []);
   const [notice, setNotice] = useState<{ phone: string; realname: string; note: string } | null>(null);
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
@@ -38,11 +43,32 @@ export function ProfilePage() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
+  const sendPhoneCode = async () => {
+    setMsg('');
+    if (!/^1[3-9]\d{9}$/.test(phone)) { setMsg('请输入正确的 11 位手机号'); return; }
+    setBusy(true);
+    try {
+      const res = await api.post<{ expiresIn: number; devCode?: string }>('/sms/send-code', { phone });
+      setPhoneDevCode(res.devCode ?? '');
+      setPhoneCountdown(res.expiresIn < 60 ? 60 : res.expiresIn);
+      if (phoneTimer.current) window.clearInterval(phoneTimer.current);
+      phoneTimer.current = window.setInterval(() => {
+        setPhoneCountdown((c) => {
+          if (c <= 1) { if (phoneTimer.current) window.clearInterval(phoneTimer.current); return 0; }
+          return c - 1;
+        });
+      }, 1000);
+      setMsg(res.devCode ? `开发模式验证码：${res.devCode}` : '验证码已发送，请在 5 分钟内填写');
+    } catch (e) { setMsg(e instanceof Error ? e.message : '验证码发送失败'); }
+    finally { setBusy(false); }
+  };
+
   const savePhone = async () => {
+    if (!/^\d{6}$/.test(phoneCode)) { setMsg('请输入 6 位短信验证码'); return; }
     setBusy(true); setMsg('');
     try {
-      await api.post('/users/me/phone', { phone, consent: true });
-      setMsg('手机号已保存'); setPhone(''); setPhoneAgree(false);
+      await api.post('/users/me/phone', { phone, code: phoneCode, consent: true });
+      setMsg('手机号已保存'); setPhone(''); setPhoneCode(''); setPhoneDevCode(''); setPhoneAgree(false);
       await load();
     } catch (e) { setMsg(e instanceof Error ? e.message : '保存失败'); }
     finally { setBusy(false); }
@@ -64,6 +90,8 @@ export function ProfilePage() {
       await api.del(`/users/me/${kind}`);
       setMsg(kind === 'phone' ? '手机号已删除' : '实名信息已删除');
       await load();
+      // 微信账号删除手机号后失去进入资格，立即重新拦截
+      if (kind === 'phone') await requirePhoneBind();
     } catch (e) { setMsg(e instanceof Error ? e.message : '删除失败'); }
     finally { setBusy(false); }
   };
@@ -102,13 +130,21 @@ export function ProfilePage() {
         ) : (
           <>
             <label className="label">手机号</label>
-            <input className="input" placeholder="11 位手机号" value={phone} onChange={(e) => setPhone(e.target.value)} />
+            <input className="input" inputMode="numeric" maxLength={11} placeholder="11 位手机号" value={phone} onChange={(e) => { setPhone(e.target.value.replace(/\D/g, '')); setPhoneDevCode(''); }} />
+            <label className="label mt8">短信验证码</label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input className="input" inputMode="numeric" maxLength={6} placeholder="6 位验证码" value={phoneCode} onChange={(e) => setPhoneCode(e.target.value.replace(/\D/g, ''))} />
+              <button className="btn btn-sm" disabled={busy || phoneCountdown > 0 || !/^1[3-9]\d{9}$/.test(phone)} onClick={sendPhoneCode} style={{ whiteSpace: 'nowrap' }}>
+                {phoneCountdown > 0 ? `${phoneCountdown}s` : '获取验证码'}
+              </button>
+            </div>
+            {phoneDevCode && <div className="notice-box notice-warn small mt8">开发模式验证码：{phoneDevCode}</div>}
             <label className="checkbox-row">
               <input type="checkbox" checked={phoneAgree} onChange={(e) => setPhoneAgree(e.target.checked)} />
               <span>我已阅读用途说明，自愿填写并同意加密存储、脱敏展示，可随时删除。</span>
             </label>
-            <button className="btn btn-block btn-sm" disabled={!phoneAgree || !phone || busy} onClick={savePhone}>
-              保存手机号
+            <button className="btn btn-block btn-sm" disabled={!phoneAgree || !/^1[3-9]\d{9}$/.test(phone) || !/^\d{6}$/.test(phoneCode) || busy} onClick={savePhone}>
+              验证并保存手机号
             </button>
           </>
         )}

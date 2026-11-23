@@ -11,7 +11,7 @@ interface SendResult {
 
 /** 仿微信「申请获取并验证你的手机号」授权弹层。手机号由本人输入 + 短信验证码核验。 */
 export function PhoneBindSheet() {
-  const { user, dismissPhoneBind, refreshUser } = useAuth();
+  const { user, dismissPhoneBind, refreshUser, logout } = useAuth();
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
   const [devCode, setDevCode] = useState('');
@@ -87,7 +87,7 @@ export function PhoneBindSheet() {
 
         <h3 className="wx-sheet-title">申请获取并验证你的手机号</h3>
         <p className="wx-sheet-desc">
-          用于考勤异常时联系本人。手机号加密存储、脱敏展示，可随时在「我的」页撤回。
+          进入考勤系统前需完成手机号验证，用于考勤异常时联系本人。手机号加密存储、脱敏展示，绑定后可在「我的」页撤回。
         </p>
 
         <div className="wx-phone-box">
@@ -125,10 +125,10 @@ export function PhoneBindSheet() {
         </div>
 
         <button className="wx-allow-btn" onClick={confirm} disabled={busy}>
-          {busy ? '处理中...' : '允许并绑定'}
+          {busy ? '处理中...' : '验证并进入考勤系统'}
         </button>
-        <button className="wx-deny-btn" onClick={dismissPhoneBind} disabled={busy}>不允许（稍后再说）</button>
-        <p className="wx-footnote">手机号仅用于考勤联系，非自动从微信读取，由本人填写并验证</p>
+        <button className="wx-deny-btn" onClick={() => void logout()} disabled={busy}>退出登录</button>
+        <p className="wx-footnote">绑定手机号后方可进入主界面；手机号由本人填写并验证，非自动从微信读取</p>
       </div>
     </div>
   );
