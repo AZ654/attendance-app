@@ -101,6 +101,42 @@ export const authRepository = {
     db.prepare('DELETE FROM refresh_tokens WHERE expires_at < ?').run(now);
   },
 
+  createQrLoginSession(state: string, expiresAt: number, now: number): void {
+    db.prepare(`
+      INSERT INTO qr_login_sessions (state, status, identity_json, expires_at, created_at, updated_at)
+      VALUES (?, 'pending', NULL, ?, ?, ?)
+    `).run(state, expiresAt, now, now);
+  },
+
+  authorizeQrLoginSession(state: string, identityJson: string, now: number): boolean {
+    const result = db.prepare(`
+      UPDATE qr_login_sessions SET status = 'authorized', identity_json = ?, updated_at = ?
+      WHERE state = ? AND status = 'pending' AND expires_at > ?
+    `).run(identityJson, now, state, now);
+    return Number(result.changes) > 0;
+  },
+
+  findQrLoginSession(state: string): { status: string; identityJson: string | null; expiresAt: number } | undefined {
+    return db.prepare(`
+      SELECT status, identity_json as identityJson, expires_at as expiresAt
+      FROM qr_login_sessions WHERE state = ?
+    `).get(state) as { status: string; identityJson: string | null; expiresAt: number } | undefined;
+  },
+
+  consumeQrLoginSession(state: string): string | undefined {
+    const row = db.prepare(`
+      SELECT identity_json as identityJson FROM qr_login_sessions
+      WHERE state = ? AND status = 'authorized' AND expires_at > ?
+    `).get(state, Date.now()) as { identityJson: string | null } | undefined;
+    if (!row?.identityJson) return undefined;
+    db.prepare('DELETE FROM qr_login_sessions WHERE state = ?').run(state);
+    return row.identityJson;
+  },
+
+  purgeExpiredQrLoginSessions(now: number): void {
+    db.prepare('DELETE FROM qr_login_sessions WHERE expires_at < ?').run(now);
+  },
+
   /** 设置首个用户为管理员，便于演示管理端；生产应由运营后台指定。 */
   countUsers(): number {
     const row = db.prepare('SELECT COUNT(*) as c FROM users').get() as { c: number };
