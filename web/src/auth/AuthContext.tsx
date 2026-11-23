@@ -11,7 +11,8 @@ interface AuthState {
   loginDev: (openid?: string) => Promise<void>;
   loginPassword: (username: string, password: string) => Promise<void>;
   loginByCode: (code: string, state?: string) => Promise<void>;
-  loginWithQrSession: (data: TokenResponse) => Promise<void>;
+  startQrLogin: () => Promise<{ state: string; authUrl: string; expiresIn: number }>;
+  checkQrLogin: (state: string) => Promise<boolean>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -84,9 +85,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [applyTokens],
   );
 
-  const loginWithQrSession = useCallback(
-    async (data: TokenResponse) => {
-      applyTokens(data);
+  const startQrLogin = useCallback(
+    async () => api.post<{ state: string; authUrl: string; expiresIn: number }>('/auth/qr-session', undefined, { skipAuth: true }),
+    [],
+  );
+
+  const checkQrLogin = useCallback(
+    async (state: string) => {
+      const data = await api.get<TokenResponse | { status: string }>(
+        `/auth/qr-status?state=${encodeURIComponent(state)}`,
+        { skipAuth: true, retries: 0 },
+      );
+      if ('accessToken' in data) {
+        applyTokens(data);
+        return true;
+      }
+      return false;
     },
     [applyTokens],
   );
@@ -110,7 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider
       value={{
         user, loading, devMode, passwordLoginEnabled, wechatConfigured,
-        loginDev, loginPassword, loginByCode, loginWithQrSession, logout, refreshUser,
+        loginDev, loginPassword, loginByCode, startQrLogin, checkQrLogin, logout, refreshUser,
       }}
     >
       {children}
