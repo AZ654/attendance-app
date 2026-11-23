@@ -16,9 +16,9 @@ const TTL_MS = 10 * 60 * 1000;
 /** 允许客户端与服务端时钟有小幅偏差。 */
 const CLOCK_SKEW_MS = 60 * 1000;
 
-export function issueOAuthState(secret: string, now: number = Date.now()): string {
-  // base36 时间戳 + 8 字节随机数，整体保持短小（微信 state 有长度限制）
-  const payload = `${now.toString(36)},${randomBytes(8).toString('base64url')}`;
+export function issueOAuthState(secret: string, now: number = Date.now(), sessionId?: string): string {
+  // base36 时间戳 + 8 字节随机数（+ 可选扫码会话 ID），整体保持短小（微信 state 有长度限制）
+  const payload = `${now.toString(36)},${randomBytes(8).toString('base64url')}${sessionId ? `,${sessionId}` : ''}`;
   const signature = createHmac('sha256', secret).update(payload).digest('base64url');
   return `${payload}.${signature}`;
 }
@@ -48,4 +48,12 @@ export function verifyOAuthState(state: unknown, secret: string, now: number = D
   const age = now - issuedAt;
   // 有效期内，或略微"未来"（时钟偏差）都可接受
   return age >= -CLOCK_SKEW_MS && age <= TTL_MS;
+}
+
+/** 从自签名 state 中提取扫码登录会话 ID；无效/过期 state 返回 undefined。 */
+export function getOAuthStateSession(state: unknown, secret: string): string | undefined {
+  if (!verifyOAuthState(state, secret)) return undefined;
+  const text = state as string;
+  const payload = text.slice(0, text.lastIndexOf('.'));
+  return payload.split(',')[2] || undefined;
 }
