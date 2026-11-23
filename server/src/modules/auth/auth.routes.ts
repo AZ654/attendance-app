@@ -4,7 +4,7 @@ import { asyncHandler } from '../../lib/asyncHandler.js';
 import { validate } from '../../lib/validate.js';
 import { requireAuth } from '../../middlewares/auth.js';
 import * as ctrl from './auth.controller.js';
-import { devLoginSchema, loginByCodeSchema, passwordLoginSchema, qrSessionStatusSchema } from './auth.schema.js';
+import { devLoginSchema, loginByCodeSchema, passwordLoginSchema } from './auth.schema.js';
 
 export const authRouter = Router();
 
@@ -21,8 +21,8 @@ const passwordLimiter = rateLimit({
 // 公开端点
 authRouter.get('/wechat/url', asyncHandler(ctrl.getWechatAuthUrl));
 authRouter.get('/wechat/callback', asyncHandler(ctrl.wechatCallback));
-authRouter.post('/qrcode/session', asyncHandler(ctrl.createQrSession));
-authRouter.get('/qrcode/status', validate(qrSessionStatusSchema, 'query'), asyncHandler(ctrl.qrSessionStatus));
+authRouter.post('/qr-session', asyncHandler(ctrl.startQrLogin));
+authRouter.get('/qr-status', asyncHandler(ctrl.qrLoginStatus));
 authRouter.post('/dev-login', validate(devLoginSchema), asyncHandler(ctrl.devLogin));
 authRouter.post('/password-login', passwordLimiter, validate(passwordLoginSchema), asyncHandler(ctrl.passwordLogin));
 authRouter.post('/login-by-code', validate(loginByCodeSchema), asyncHandler(ctrl.loginByCode));
