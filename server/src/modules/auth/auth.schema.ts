@@ -38,3 +38,7 @@ export const loginByCodeSchema = z.object({
   code: z.string().min(1).max(256),
   state: z.string().max(256).optional(),
 });
+
+export const qrSessionStatusSchema = z.object({
+  sessionId: z.string().uuid(),
+});
