@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { haversineDistance } from '../src/lib/geo.js';
 import { maskIdCard, maskPhone, encrypt, decrypt, hashPassword, verifyPassword } from '../src/lib/crypto.js';
-import { issueOAuthState, verifyOAuthState } from '../src/lib/oauth-state.js';
+import { getOAuthStateSession, issueOAuthState, verifyOAuthState } from '../src/lib/oauth-state.js';
 
 describe('OAuth state 自签名校验', () => {
   const secret = 'test-secret-key-at-least-16-chars';
@@ -25,6 +25,14 @@ describe('OAuth state 自签名校验', () => {
   it('空值/非字符串校验失败', () => {
     expect(verifyOAuthState(undefined, secret)).toBe(false);
     expect(verifyOAuthState('', secret)).toBe(false);
+  });
+  it('扫码会话 ID 可提取且篡改后失效', () => {
+    const sessionId = '11111111-2222-3333-4444-555555555555';
+    const state = issueOAuthState(secret, Date.now(), sessionId);
+    expect(verifyOAuthState(state, secret)).toBe(true);
+    expect(getOAuthStateSession(state, secret)).toBe(sessionId);
+    expect(getOAuthStateSession(`${state}x`, secret)).toBeUndefined();
+    expect(getOAuthStateSession(issueOAuthState(secret), secret)).toBeUndefined();
   });
 });
 
