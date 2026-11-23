@@ -10,6 +10,9 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // 不用插件默认注册脚本，改由 index.html 内联脚本控制：
+      // 每次加载先清理旧版本缓存，SW 更新后自动 reload，避免用户看到缓存的旧页面。
+      injectRegister: false,
       includeAssets: ['favicon.svg', 'icon-192.svg', 'icon-512.svg'],
       manifest: {
         name: '员工考勤系统',
