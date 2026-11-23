@@ -4,9 +4,13 @@ import { logger } from './lib/logger.js';
 import { db } from './db/index.js';
 import { startMailWorker, stopMailWorker } from './jobs/mailer.js';
 
+const BUILD_TAG = '2026-11-23-qr-login';
 const app = createApp();
 const server = app.listen(config.PORT, () => {
-  logger.info({ port: config.PORT, env: config.NODE_ENV, devMode: config.isDevMode }, '服务已启动');
+  logger.info(
+    { port: config.PORT, env: config.NODE_ENV, devMode: config.isDevMode, build: BUILD_TAG },
+    '服务已启动'
+  );
   startMailWorker();
 });
 
