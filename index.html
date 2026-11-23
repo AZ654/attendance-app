@@ -25,9 +25,54 @@
     </script>
     <!-- 运行时配置：部署后可直接改 config.js 切换后端地址，无需重新构建 -->
     <script src="/attendance-app/config.js"></script>
+    <!-- PWA：主动更新。清掉旧缓存 + SW 更新后立即重载，确保用户永远拿到最新页面 -->
+    <script>
+      (function () {
+        if (!('serviceWorker' in navigator)) return;
+        var BASE = '/attendance-app/';
+        // 清理历史遗留缓存（含旧版页面），避免缓存的 index.html 引用过期 JS
+        function clearOldCaches() {
+          if (!('caches' in window)) return Promise.resolve();
+          return caches.keys().then(function (keys) {
+            return Promise.all(keys.map(function (k) {
+              return caches.delete(k);
+            }));
+          });
+        }
+        window.addEventListener('load', function () {
+          // 本轮正在由 config.js 清理旧缓存/旧 SW，跳过注册，避免竞态
+          try { if (sessionStorage.getItem('attendance_purging') === '1') return; } catch (e) {}
+          navigator.serviceWorker.register(BASE + 'sw.js', { scope: BASE })
+            .then(function (reg) {
+              reg.update();
+              // 每次页面加载都清一次旧缓存，保证 HTML/JS 始终取最新
+              clearOldCaches();
+              // 发现新 SW 安装完成 → 跳过等待并重载页面，让新代码立即生效
+              reg.onupdatefound = function () {
+                var nw = reg.installing;
+                if (!nw) return;
+                nw.onstatechange = function () {
+                  if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+                    if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+                    window.location.reload();
+                  }
+                };
+              };
+            })
+            .catch(function () { /* 注册失败不影响主流程 */ });
+          // 控制本页的 SW 发生变更（新版本接管）时自动重载一次
+          var reloaded = false;
+          navigator.serviceWorker.addEventListener('controllerchange', function () {
+            if (reloaded) return;
+            reloaded = true;
+            window.location.reload();
+          });
+        });
+      })();
+    </script>
     <script type="module" crossorigin src="/attendance-app/assets/index-RPfPaZTJ.js"></script>
     <link rel="stylesheet" crossorigin href="/attendance-app/assets/index-DIe1258r.css">
-  <link rel="manifest" href="/attendance-app/manifest.webmanifest"><script id="vite-plugin-pwa:register-sw" src="/attendance-app/registerSW.js"></script></head>
+  <link rel="manifest" href="/attendance-app/manifest.webmanifest"></head>
   <body>
     <div id="root"></div>
   </body>
