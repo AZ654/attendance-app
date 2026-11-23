@@ -11,7 +11,7 @@ interface SendResult {
 
 /** 仿微信「申请获取并验证你的手机号」授权弹层。手机号由本人输入 + 短信验证码核验。 */
 export function PhoneBindSheet() {
-  const { user, dismissPhoneBind, refreshUser, logout } = useAuth();
+  const { user, dismissPhoneBind, refreshUser } = useAuth();
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
   const [devCode, setDevCode] = useState('');
@@ -127,7 +127,6 @@ export function PhoneBindSheet() {
         <button className="wx-allow-btn" onClick={confirm} disabled={busy}>
           {busy ? '处理中...' : '验证并进入考勤系统'}
         </button>
-        <button className="wx-deny-btn" onClick={() => void logout()} disabled={busy}>退出登录</button>
         <p className="wx-footnote">绑定手机号后方可进入主界面；手机号由本人填写并验证，非自动从微信读取</p>
       </div>
     </div>
