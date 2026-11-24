@@ -76,7 +76,19 @@ export function createApp() {
     res.json({ status: 'ok', uptime: process.uptime(), timestamp: Date.now() });
   });
   app.get('/ready', (_req, res) => {
-    res.json({ status: 'ready', db: 'ok', mailJobs: mailQueue.stats() });
+    res.json({
+      status: 'ready',
+      db: 'ok',
+      mailJobs: mailQueue.stats(),
+      // 邮件链路诊断（不含密钥明文，仅暴露开关与是否已配置）
+      mail: {
+        relayEnabled: config.mailRelayEnabled,
+        relayTokenSet: Boolean(config.mailRelayToken),
+        githubTokenSet: Boolean(config.githubToken),
+        githubRepo: config.githubRepo,
+        instantTriggerReady: config.mailRelayEnabled && Boolean(config.githubToken),
+      },
+    });
   });
 
   const api = express.Router();
