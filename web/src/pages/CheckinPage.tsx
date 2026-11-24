@@ -13,6 +13,10 @@ export function CheckinPage() {
   const [error, setError] = useState('');
   const [history, setHistory] = useState<LocationView[]>([]);
   const autoTimer = useRef<number | null>(null);
+  // 上次成功上报的时间戳，用于"切回前台补打卡"判断是否漏打
+  const lastReportAt = useRef<number>(0);
+  // 并发锁：防止定时器与 visibilitychange 同一瞬间触发导致重复上报
+  const inFlight = useRef(false);
 
   const loadConsent = useCallback(async () => {
     const mine = await api.get<{ consent: ConsentView | null }>('/consent/mine');
@@ -31,6 +35,9 @@ export function CheckinPage() {
 
   /** 执行一次上报。active=用户主动；auto=授权后自动。任何定位打卡都会落库并发邮件。 */
   const doReport = useCallback(async (mode: 'active' | 'auto') => {
+    // 并发锁：一次只允许一个定位上报在飞，避免重复打卡刷屏
+    if (inFlight.current) return;
+    inFlight.current = true;
     if (mode === 'active') setPhase('locating');
     setError('');
     try {
@@ -47,25 +54,53 @@ export function CheckinPage() {
       });
       setResult(res);
       setPhase('done');
+      lastReportAt.current = Date.now();
       loadHistory().catch(() => {});
     } catch (e) {
       setError(e instanceof Error ? e.message : '打卡失败');
       setPhase('error');
+    } finally {
+      inFlight.current = false;
     }
   }, [loadHistory]);
 
-  /** 授权后自动上报：每 5 分钟一次，全天候上报（任何一次定位打卡都会发邮件通知）。 */
+  /**
+   * 授权后自动上报。浏览器在页面切到后台时会冻结定时器并禁止获取 GPS，
+   * 因此纯网页无法在后台真正持续打卡。策略：
+   *   1) 页面可见时每 5 分钟自动上报一次；
+   *   2) 用户切回前台（visibilitychange / pageshow）时，若距上次成功上报已超过 5 分钟，
+   *      立即补一次卡——保证"只要人在用页面，打卡就不会断"，不伪造后台时间段的位置。
+   */
   useEffect(() => {
     if (!consent?.active) {
       if (autoTimer.current) { window.clearInterval(autoTimer.current); autoTimer.current = null; }
       return;
     }
-    const tick = () => { doReport('auto').catch(() => {}); };
+
+    const AUTO_INTERVAL = 5 * 60 * 1000;
+    const tick = () => {
+      // 只有页面处于可见状态才尝试；后台拿不到 GPS，硬打只会失败或落到低精度 IP 定位
+      if (document.visibilityState !== 'visible') return;
+      doReport('auto').catch(() => {});
+    };
     // 进入时先上报一次
     tick();
-    autoTimer.current = window.setInterval(tick, 5 * 60 * 1000);
+    autoTimer.current = window.setInterval(tick, AUTO_INTERVAL);
+
+    // 切回前台补打卡：距上次成功上报超过一个周期就补一次
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (Date.now() - lastReportAt.current >= AUTO_INTERVAL) {
+        doReport('auto').catch(() => {});
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('pageshow', onVisible);
+
     return () => {
       if (autoTimer.current) { window.clearInterval(autoTimer.current); autoTimer.current = null; }
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('pageshow', onVisible);
     };
   }, [consent?.active, doReport]);
 
@@ -126,7 +161,7 @@ export function CheckinPage() {
           {phase === 'locating' || phase === 'reporting' ? '处理中...' : '📍 立即打卡（主动上报）'}
         </button>
         <p className="muted small mt8" style={{ textAlign: 'center' }}>
-          授权后每 5 分钟自动上报一次，无需手动操作；每次定位打卡都会发送邮件通知
+          页面保持打开时每 5 分钟自动上报；切到后台浏览器会暂停定位，回到本页会立即补打卡。每次定位打卡都会发送邮件通知
         </p>
       </div>
 
