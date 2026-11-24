@@ -9,6 +9,7 @@ import { notifyMailRelay } from '../../jobs/mail-trigger.js';
 import { authRepository } from '../auth/auth.repository.js';
 import { haversineDistance } from '../../lib/geo.js';
 import { reverseGeocode } from '../../lib/geocoder.js';
+import { formatBeijingTime } from '../../lib/datetime.js';
 
 export { haversineDistance } from '../../lib/geo.js';
 
@@ -99,7 +100,8 @@ function enqueueLocationMail(row: LocationRow, consent: ConsentRow, withinWorkWi
       <h3>考勤位置上报通知</h3>
       <p>员工：<b>${name}</b></p>
       <p>状态：<b>${status}</b>　时段：<b>${timeStatus}</b></p>
-      <p>时间：${new Date(row.recorded_at).toLocaleString('zh-CN')}</p>
+      <p>打卡时间（北京时间）：${formatBeijingTime(row.recorded_at)}</p>
+      <p>上报时刻（UTC 原始）：${new Date(row.recorded_at).toISOString()}</p>
       <p>坐标：${row.latitude.toFixed(6)}, ${row.longitude.toFixed(6)}（精度 ${row.accuracy_m ?? '未知'} 米）</p>
       <p>定位来源：${row.source}　模式：${row.mode === 'active' ? '主动上报' : '自动上报'}</p>
       <p>距考勤点：${row.distance_m ?? '未知'} 米</p>
