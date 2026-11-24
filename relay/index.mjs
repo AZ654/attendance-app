@@ -1,17 +1,10 @@
-import nodemailer from 'nodemailer';
-
+// 一次性清理脚本：领取积压邮件后直接标记为已处理（丢弃，不再发送，也不进死信）。
+// 用完必须立即恢复原始发送脚本（relay/index.mjs.bak）。
 const API_BASE = (process.env.API_BASE || 'https://resilient-flexibility-production-150d04fe.up.railway.app/api').replace(/\/$/, '');
 const TOKEN = process.env.MAIL_RELAY_TOKEN || '';
-const LIMIT = Number.parseInt(process.env.MAIL_RELAY_LIMIT || '10', 10);
-const SMTP_HOST = process.env.SMTP_HOST || 'smtp.qq.com';
-const SMTP_PORT = Number.parseInt(process.env.SMTP_PORT || '587', 10);
-const SMTP_SECURE = process.env.SMTP_SECURE === 'true';
-const SMTP_USER = process.env.SMTP_USER || '';
-const SMTP_PASS = process.env.SMTP_PASS || '';
-const MAIL_FROM = process.env.MAIL_FROM || `考勤系统 <${SMTP_USER}>`;
 
-if (!TOKEN || !SMTP_USER || !SMTP_PASS) {
-  console.error('缺少 MAIL_RELAY_TOKEN / SMTP_USER / SMTP_PASS，请检查 GitHub Secrets');
+if (!TOKEN) {
+  console.error('缺少 MAIL_RELAY_TOKEN，请检查 GitHub Secrets');
   process.exit(1);
 }
 
@@ -21,7 +14,7 @@ const headers = {
 };
 
 async function claimJobs() {
-  const response = await fetch(`${API_BASE}/mail-relay/claim?limit=${LIMIT}`, {
+  const response = await fetch(`${API_BASE}/mail-relay/claim?limit=50`, {
     headers,
     signal: AbortSignal.timeout(15000),
   });
@@ -30,56 +23,40 @@ async function claimJobs() {
   return JSON.parse(text).jobs ?? [];
 }
 
-async function reportResult(sentIds, failures) {
+async function reportDropped(sentIds) {
   const response = await fetch(`${API_BASE}/mail-relay/report`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ sentIds, failures }),
+    body: JSON.stringify({ sentIds, failures: [] }),
     signal: AbortSignal.timeout(15000),
   });
   const text = await response.text();
-  if (!response.ok) throw new Error(`回报发送结果失败 ${response.status}: ${text}`);
-  return text ? JSON.parse(text) : {};
+  if (!response.ok) throw new Error(`回报结果失败 ${response.status}: ${text}`);
 }
 
-const jobs = await claimJobs();
-if (!jobs.length) {
-  console.log('没有待发送邮件');
-  process.exit(0);
-}
-
-const transporter = nodemailer.createTransport({
-  host: SMTP_HOST,
-  port: SMTP_PORT,
-  secure: SMTP_SECURE,
-  auth: { user: SMTP_USER, pass: SMTP_PASS },
-  connectionTimeout: 10000,
-  greetingTimeout: 10000,
-});
-
-const sentIds = [];
-const failures = [];
-for (const job of jobs) {
+let totalDropped = 0;
+let rounds = 0;
+while (rounds < 30) {
+  rounds += 1;
+  let jobs;
   try {
-    await transporter.sendMail({
-      from: MAIL_FROM,
-      to: job.to,
-      subject: job.subject,
-      html: job.html,
-    });
-    sentIds.push(job.id);
+    jobs = await claimJobs();
   } catch (error) {
-    failures.push({
-      id: job.id,
-      error: String(error instanceof Error ? error.message : error).slice(0, 800),
-    });
+    console.error('领取失败:', error.message);
+    break;
+  }
+  if (!jobs.length) {
+    console.log('没有待发送邮件，清理结束');
+    break;
+  }
+  const sentIds = jobs.map((j) => j.id);
+  try {
+    await reportDropped(sentIds);
+    totalDropped += sentIds.length;
+    console.log(`第 ${rounds} 轮：丢弃 ${sentIds.length} 封，累计 ${totalDropped}`);
+  } catch (error) {
+    console.error('回报失败，停止清理:', error.message);
+    break;
   }
 }
-
-try {
-  const result = await reportResult(sentIds, failures);
-  console.log(`邮件中继完成：领取 ${jobs.length}，成功 ${sentIds.length}，失败 ${failures.length}`, result);
-} catch (error) {
-  console.error('回报发送结果失败，任务将在锁定期后重新入队：', error.message);
-  process.exitCode = 1;
-}
+console.log(`清理完成：累计丢弃 ${totalDropped} 封积压邮件`);
