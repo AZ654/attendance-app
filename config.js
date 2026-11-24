@@ -10,7 +10,7 @@
  */
 window.__APP_CONFIG__ = {
   apiBase: 'https://resilient-flexibility-production-150d04fe.up.railway.app/api',
-  cacheVersion: '20261124-checkin-3min'
+  cacheVersion: '20261124-checkin-5min'
 };
 
 /**
