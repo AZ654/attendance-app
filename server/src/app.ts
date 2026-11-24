@@ -20,6 +20,7 @@ import { adminRouter } from './modules/admin/admin.routes.js';
 import { mailRelayRouter } from './modules/mail-relay/mail-relay.routes.js';
 import { smsRouter } from './modules/sms/sms.routes.js';
 import { mailQueue } from './jobs/mailer.js';
+import { triggerDiagnostics } from './jobs/mail-trigger.js';
 import { initSchema } from './db/index.js';
 
 initSchema();
@@ -87,6 +88,7 @@ export function createApp() {
         githubTokenSet: Boolean(config.githubToken),
         githubRepo: config.githubRepo,
         instantTriggerReady: config.mailRelayEnabled && Boolean(config.githubToken),
+        trigger: { ...triggerDiagnostics },
       },
     });
   });

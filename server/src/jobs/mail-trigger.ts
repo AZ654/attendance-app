@@ -22,6 +22,14 @@ let firing = false;
 let wanted = false;
 let timer: NodeJS.Timeout | null = null;
 
+/** 诊断用：最近一次触发 GitHub 中继的结果（不含密钥）。 */
+export const triggerDiagnostics = {
+  fireCount: 0,
+  lastFireAt: 0,
+  lastStatus: 0,
+  lastError: '',
+};
+
 function schedule(): void {
   if (timer) return;
   const delay = Math.max(0, COOLDOWN_MS - (Date.now() - lastFireAt));
@@ -61,13 +69,22 @@ async function pump(): Promise<void> {
       body: JSON.stringify({ ref: config.githubRef }),
       signal: AbortSignal.timeout(8000),
     });
+    triggerDiagnostics.fireCount += 1;
+    triggerDiagnostics.lastFireAt = Date.now();
+    triggerDiagnostics.lastStatus = res.status;
     if (res.ok || res.status === 204) {
+      triggerDiagnostics.lastError = '';
       logger.info('已触发邮件中继立即发送');
     } else {
       const text = await res.text().catch(() => '');
+      triggerDiagnostics.lastError = `HTTP ${res.status}: ${text.slice(0, 200)}`;
       logger.warn({ status: res.status, body: text.slice(0, 200) }, '触发邮件中继失败，等待 cron 兜底');
     }
   } catch (err) {
+    triggerDiagnostics.fireCount += 1;
+    triggerDiagnostics.lastFireAt = Date.now();
+    triggerDiagnostics.lastStatus = -1;
+    triggerDiagnostics.lastError = String(err instanceof Error ? err.message : err).slice(0, 200);
     logger.warn({ err: String(err instanceof Error ? err.message : err) }, '触发邮件中继异常，等待 cron 兜底');
   } finally {
     firing = false;
