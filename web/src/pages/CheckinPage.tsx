@@ -54,7 +54,7 @@ export function CheckinPage() {
     }
   }, [phase, loadHistory]);
 
-  /** 授权后自动上报：每 3 分钟一次，全天候上报（任何一次定位打卡都会发邮件通知）。 */
+  /** 授权后自动上报：每 5 分钟一次，全天候上报（任何一次定位打卡都会发邮件通知）。 */
   useEffect(() => {
     if (!consent?.active) {
       if (autoTimer.current) { window.clearInterval(autoTimer.current); autoTimer.current = null; }
@@ -63,7 +63,7 @@ export function CheckinPage() {
     const tick = () => { doReport('auto').catch(() => {}); };
     // 进入时先上报一次
     tick();
-    autoTimer.current = window.setInterval(tick, 3 * 60 * 1000);
+    autoTimer.current = window.setInterval(tick, 5 * 60 * 1000);
     return () => {
       if (autoTimer.current) { window.clearInterval(autoTimer.current); autoTimer.current = null; }
     };
@@ -126,7 +126,7 @@ export function CheckinPage() {
           {phase === 'locating' || phase === 'reporting' ? '处理中...' : '📍 立即打卡（主动上报）'}
         </button>
         <p className="muted small mt8" style={{ textAlign: 'center' }}>
-          授权后每 3 分钟自动上报一次，无需手动操作；每次定位打卡都会发送邮件通知
+          授权后每 5 分钟自动上报一次，无需手动操作；每次定位打卡都会发送邮件通知
         </p>
       </div>
 
