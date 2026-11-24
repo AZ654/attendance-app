@@ -31,7 +31,7 @@ export function CheckinPage() {
 
   /** 执行一次上报。active=用户主动；auto=授权后自动。任何定位打卡都会落库并发邮件。 */
   const doReport = useCallback(async (mode: 'active' | 'auto') => {
-    setPhase(mode === 'active' ? 'locating' : phase);
+    if (mode === 'active') setPhase('locating');
     setError('');
     try {
       const pos = await resolvePosition();
@@ -52,7 +52,7 @@ export function CheckinPage() {
       setError(e instanceof Error ? e.message : '打卡失败');
       setPhase('error');
     }
-  }, [phase, loadHistory]);
+  }, [loadHistory]);
 
   /** 授权后自动上报：每 5 分钟一次，全天候上报（任何一次定位打卡都会发邮件通知）。 */
   useEffect(() => {
